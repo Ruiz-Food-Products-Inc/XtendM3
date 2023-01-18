@@ -1,0 +1,142 @@
+metadataVersion: 1
+apis:
+  - name: EXT107MI
+    transactions:
+      - name: AddRecord
+        fileName: EXT107MI_AddRecord
+        createdBy: AJAY
+        updatedBy: AJAY
+        description: Adds a Balance to Reclassify at arrival
+        type: SINGLE
+        inputs:
+          - name: WHLO
+            description: Warehouse
+            length: 3
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: ITNO
+            description: Item Number
+            length: 15
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: WHSL
+            description: Warehouse
+            length: 3
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: BANO
+            description: Lot Number
+            length: 20
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: CAMU
+            description: Container Number
+            length: 20
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: NSTS
+            description: New Status
+            length: 1
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: STAT
+            description: Reclassification status
+            length: 2
+            type: ALPHANUMERIC
+            mandatory: true
+      - name: GetRecord
+        fileName: EXT107MI_GetRecord
+        createdBy: VIDYA
+        updatedBy: AJAY
+        description: Gets Reclassification's scheduled for specific Balances part of given Delivery Line
+        type: SINGLE
+        inputs:
+          - name: TRNR
+            description: Order Number
+            length: 10
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: PONR
+            description: Line Number
+            length: 5
+            type: NUMERIC
+            mandatory: true
+          - name: BANO
+            description: Lot Number
+            length: 20
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: CAMU
+            description: Container Number
+            length: 20
+            type: ALPHANUMERIC
+            mandatory: true
+        outputs:
+          - name: TRNR
+            description: Order Number
+            length: 10
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: PONR
+            description: Line Number
+            length: 5
+            type: NUMERIC
+            mandatory: true
+          - name: BANO
+            description: Lot Number
+            length: 20
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: CAMU
+            description: Container Number
+            length: 20
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: NSTS
+            description: New Status
+            length: 1
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: STAT
+            description: Reclassification status
+            length: 2
+            type: ALPHANUMERIC
+            mandatory: true
+      - name: UpdRecord
+        fileName: EXT107MI_UpdRecord
+        createdBy: VIDYA
+        updatedBy: AJAY
+        description: Updates the Status after Reclassification
+        type: SINGLE
+        inputs:
+          - name: TRNR
+            description: Order Number
+            length: 10
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: PONR
+            description: Line Number
+            length: 5
+            type: NUMERIC
+            mandatory: true
+          - name: BANO
+            description: Lot Number
+            length: 20
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: CAMU
+            description: Container Number
+            length: 20
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: STAT
+            description: Reclassification status
+            length: 2
+            type: ALPHANUMERIC
+            mandatory: true
+        outputs:
+          - name: STAT
+            description: Reclassification status
+            length: 2
+            type: ALPHANUMERIC
+            mandatory: true
