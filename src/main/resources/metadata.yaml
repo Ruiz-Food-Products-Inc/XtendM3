@@ -140,3 +140,32 @@ apis:
             length: 2
             type: ALPHANUMERIC
             mandatory: true
+  - name: EXT130MI
+    transactions:
+      - name: CrtSubLot
+        fileName: EXT130MI_CrtSubLot
+        createdBy: VIDYA
+        updatedBy: VIDYA
+        description: Create Sub Lot
+        type: SINGLE
+        inputs:
+          - name: CONO
+            description: Company
+            length: 3
+            type: NUMERIC
+            mandatory: false
+          - name: ITNO
+            description: Item Number
+            length: 15
+            type: ALPHANUMERIC
+            mandatory: true
+          - name: BANO
+            description: Lot Number
+            length: 20
+            type: ALPHANUMERIC
+            mandatory: true
+        outputs:
+          - name: SBAN
+            description: SubLotNumber
+            length: 20
+            type: ALPHANUMERIC
