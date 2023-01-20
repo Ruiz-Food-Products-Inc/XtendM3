@@ -1,0 +1,109 @@
+/*
+ * README
+ * This extension is being used to Add records to EXTMGH table for EDI turnaround purpose. 
+ *
+ * Name: EXT100MI.AddDOHeadInfo
+ * Description: Adding records to EXTMGH table
+ *
+ * Date	      Changed By            Description
+ * 20220924	  Girish Hosamani      Adding records to EXTMGH table
+ * 20221223   Pranoti Khatavkar    Adding new field MESG in EXTMGH table
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class AddDOHeadInfo extends ExtendM3Transaction {
+	private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+
+	// Primary key fields
+	private int iCONO
+	private String iTRNR, iSTAT, iS945, iACKC, iACKD, iACKW, iACK3, iWHLO, iMESG
+	private boolean IsValidORNO
+
+	public AddDOHeadInfo(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+  }
+
+	public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? program.LDAZD.CONO.toString() as Integer : mi.inData.get("CONO") as Integer
+		iTRNR = mi.inData.get("TRNR") == null || mi.inData.get("TRNR").trim() == "?" ? "" : mi.inData.get("TRNR").trim()
+		iSTAT = mi.inData.get("STAT") == null || mi.inData.get("STAT").trim() == "?" ? "" : mi.inData.get("STAT").trim()
+		iS945 = mi.inData.get("S945") == null || mi.inData.get("S945").trim() == "?" ? "" : mi.inData.get("S945").trim()
+		iACKC = mi.inData.get("ACKC") == null || mi.inData.get("ACKC").trim() == "?" ? "" : mi.inData.get("ACKC").trim()
+		iACKD = mi.inData.get("ACKD") == null || mi.inData.get("ACKD").trim() == "?" ? "" : mi.inData.get("ACKD").trim()		
+		iACKW = mi.inData.get("ACKW") == null || mi.inData.get("ACKW").trim() == "?" ? "" : mi.inData.get("ACKW").trim()
+		iACK3 = mi.inData.get("ACK3") == null || mi.inData.get("ACK3").trim() == "?" ? "" : mi.inData.get("ACK3").trim()
+		iWHLO = mi.inData.get("WHLO") == null || mi.inData.get("WHLO").trim() == "?" ? "" : mi.inData.get("WHLO").trim()
+		iMESG = mi.inData.get("MESG") == null || mi.inData.get("MESG").trim() == "?" ? "" : mi.inData.get("MESG").trim()
+		//Validates the input parameters
+		validateOrno(iCONO, iTRNR)
+
+		//Flag is set to False if an error exists in the input fields
+		if(IsValidORNO){
+			insertRecord()
+		}
+  }
+
+	/*
+	 * Validating the MI input  
+	 * @param cono - Company number
+	 * @param orno - Distribution Order number
+	 *
+	 */
+	private validateOrno(int cono, String orno){
+		DBAction actionmghead = database.table("MGHEAD").index("00").selectAllFields().build()
+    DBContainer mghead = actionmghead.getContainer()
+
+    mghead.set("MGCONO", cono)
+    mghead.set("MGTRNR", orno)
+
+    // Fetch the information form the table and output it
+    if (actionmghead.read(mghead)) {
+        IsValidORNO = true // This means no error
+    } else {
+        IsValidORNO = false
+        mi.error("Order does not exist")
+        return
+    }
+	}
+
+	/*
+	 * Inserts record in the EXTMGH table
+	 *
+	 */
+	private void insertRecord(){
+		DBAction actionextmgh = database.table("EXTMGH").index("00").selection("EXCONO","EXTRNR").build()
+		DBContainer extmgh = actionextmgh.getContainer()
+
+		extmgh.set("EXCONO", iCONO)
+		extmgh.set("EXTRNR", iTRNR)
+		extmgh.set("EXSTAT", iSTAT)
+		extmgh.set("EXS945", iS945)
+		extmgh.set("EXACKC", iACKC)
+		extmgh.set("EXACKD", iACKD)
+		extmgh.set("EXACKW", iACKW)
+		extmgh.set("EXACK3", iACK3)
+		extmgh.set("EXWHLO", iWHLO)
+		extmgh.set("EXMESG", iMESG)
+		
+		extmgh.set("EXRGDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		extmgh.set("EXRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		extmgh.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		extmgh.set("EXCHNO", 1)
+		extmgh.set("EXCHID", program.getUser())
+		
+		actionextmgh.insert(extmgh,recordExists)
+	}
+
+	Closure recordExists = {
+		mi.error("Record Already Exists")
+		return
+	}
+}
