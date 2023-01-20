@@ -48,7 +48,7 @@ apis:
         fileName: EXT107MI_GetRecord
         createdBy: VIDYA
         updatedBy: AJAY
-        description: Gets Reclassification's scheduled for specific Balances part of given Delivery Line
+        description: Gets Reclassifications scheduled
         type: SINGLE
         inputs:
           - name: TRNR
