@@ -1,0 +1,69 @@
+/*
+ * README
+ * This extension is being used to get records from EXTOOH table
+ *
+ * Name: EXT100MI.GetOOHeadInfo
+ * Description: Getting records to EXTOOH table
+ *
+ * Date	      Created By                    Description
+ * 20221028	  Girish Hosamani               Getting records from EXTOOH table
+ * 20221125   Pranoti Khatavkar             Added logic to get field DESC from EXTOOH table . NonEDI requirement.
+ * 20221226   Pranoti Khatavkar             Added A830(TRST) string field in EXTOOH table,NonEDI Requirement
+ */
+
+public class GetOOHeadInfo extends ExtendM3Transaction {
+	private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+  
+  //Input fields
+	private int iCONO
+	private String iORNO
+	
+  public GetOOHeadInfo(MIAPI mi,DatabaseAPI database, ProgramAPI program) {
+		this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  
+  public void main() {
+		iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? program.LDAZD.CONO.toString() as Integer : mi.inData.get("CONO") as Integer
+		iORNO = mi.inData.get("ORNO") == null || mi.inData.get("ORNO").trim() == "?" ? "" : mi.inData.get("ORNO").trim()
+    
+    //Fetch the information
+		getRecord()		
+  }
+  
+ /*
+	* Get record from EXTOOH table
+	*/
+  private void getRecord(){
+		DBAction actionextooh = database.table("EXTOOH").index("00").selectAllFields().build()
+		DBContainer extooh = actionextooh.getContainer()
+
+		extooh.set("EXCONO", iCONO)
+		extooh.set("EXORNO", iORNO)
+		
+		// Fetch the information form the table and output it
+    if(actionextooh.read(extooh)) {
+		 	mi.outData.put("CONO", extooh.getInt("EXCONO").toString())
+		 	mi.outData.put("ORNO", extooh.getString("EXORNO"))
+		 	mi.outData.put("CFBK", extooh.getString("EXCFBK"))
+			mi.outData.put("RCOR", extooh.getString("EXRCOR"))
+			mi.outData.put("TO3P", extooh.getString("EXTO3P"))
+			mi.outData.put("STAT", extooh.getString("EXSTAT"))
+			mi.outData.put("EDPW", extooh.getString("EXEDPW"))
+			mi.outData.put("ACKS", extooh.getString("EXACKS"))
+			mi.outData.put("ACKW", extooh.getString("EXACKW"))
+			mi.outData.put("ACKA", extooh.getString("EXACKA"))
+			mi.outData.put("ORST", extooh.getString("EXORST"))
+			mi.outData.put("WHLO", extooh.getString("EXWHLO"))
+			mi.outData.put("DESC", extooh.getString("EXDESC"))
+			mi.outData.put("TRST", extooh.getString("EXTRST"))
+			mi.write()
+		} else {
+			mi.error("Record does not exist")
+			return
+		}
+  }
+}
