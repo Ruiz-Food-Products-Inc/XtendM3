@@ -1,0 +1,78 @@
+/**
+ * README
+ * This extension is being used as an extension of EXTMPH table
+ * Name: EXT100MI.UpdPOCustomInfo
+ * Description: To update Purchase order  related custom information in EXTMPH table
+ * Date	      Changed By            Description
+ * 20221031  Pranoti Khatavkar      To update a record in the EXTMPH table
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdPOCustomInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+ private int iCONO
+ private String iPUNO,iLDNO
+  
+  public UpdPOCustomInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+  /**
+   * Main method
+  */
+   
+  public void main() {
+     logger.debug("In Main method")
+     iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+     iPUNO = mi.inData.get("PUNO") == null ? "" : mi.inData.get("PUNO")
+     iLDNO = mi.inData.get("LDNO") == null ? "" : mi.inData.get("LDNO")
+     
+     	//If no error then update the record
+		changeRecordInEXTMPH()
+ }
+  
+   /*
+	 * Update record in the EXTMPH table
+	 */
+	private void changeRecordInEXTMPH(){
+	  logger.debug("In changeRecordInEXTMPH method")
+		DBAction dbAction = database.table("EXTMPH").index("00").selection("EXCONO","EXPUNO").build()
+		DBContainer EXTMPH = dbAction.getContainer()
+
+		EXTMPH.set("EXCONO", iCONO)
+		EXTMPH.set("EXPUNO", iPUNO)
+		// Update changed information
+		if (!dbAction.readLock(EXTMPH, updateCallBack)) {
+			mi.error("Record does not exist")
+			return
+		}
+	}
+
+	/**
+	 * Closure for EXTMPH Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+
+		if(iPUNO.trim() != "") {lockedResult.set("EXPUNO", iPUNO) }
+		if(iLDNO.trim() != "") {lockedResult.set("EXLDNO", iLDNO) }
+	
+		
+		// Update changed information
+		lockedResult.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.setInt("EXCHNO", (lockedResult.getInt("EXCHNO") + 1))
+		lockedResult.set("EXCHID", program.getUser())
+		lockedResult.update()
+  }
+}

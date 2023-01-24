@@ -1,0 +1,68 @@
+/*
+ * README
+ * This extension is being used to Get records to EXTMPH table for PO related custom field information. 
+ *
+ * Name: EXT100MI.GetPOCustomInfo
+ * Description: Getting records to EXTMPH table
+ * Date	      Created By                    Description
+ * 20221017	  Pranoti Khatavkar             Getting records from EXTMPH table
+ *
+ */
+ 
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class GetPOCustomInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+		
+		//Input fields
+	private int iCONO
+	private String iPUNO
+  
+  public GetPOCustomInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+	}
+  
+  /**
+  * Main method
+  **/
+  public void main() {
+     logger.debug("In Main method")
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer   
+		iPUNO = mi.inData.get("PUNO") == null ? "" : mi.inData.get("PUNO")
+		
+		//Fetch the information from EXTMPH table
+		getRecordFromEXTMPH()
+    
+  }
+  
+  /**
+	 * Get record from EXTMPH table
+	 */
+  private void getRecordFromEXTMPH(){
+		DBAction dbAction = database.table("EXTMPH").index("00").selectAllFields().build()
+		DBContainer EXTMPH = dbAction.getContainer()
+
+		EXTMPH.set("EXCONO", iCONO)
+		EXTMPH.set("EXPUNO", iPUNO.toString())
+
+		// Fetch the information form the table and output it
+		if(dbAction.read(EXTMPH)) {
+			mi.outData.put("CONO", EXTMPH.getInt("EXCONO").toString())
+			mi.outData.put("PUNO", EXTMPH.getString("EXPUNO"))
+			mi.outData.put("LDNO", EXTMPH.getString("EXLDNO"))
+			mi.write()
+		} else {
+			mi.error("Record does not exist")
+		}
+	}
+}

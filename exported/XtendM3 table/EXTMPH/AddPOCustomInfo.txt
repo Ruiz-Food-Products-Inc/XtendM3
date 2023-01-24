@@ -1,0 +1,93 @@
+/*
+ * README
+ * This extension is being used to Add records to EXTMPH table for PO related custom field information. 
+ *
+ * Name: EXT100MI.AddPOCustomInfo
+ * Description: Adding records to EXTMPH table
+ * Date	      Created By                    Description
+ * 20221014	  Pranoti Khatavkar             Adding records to EXTMPH table
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+public class AddPOCustomInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+	 //Input fields
+	private int iCONO
+  private String iPUNO, iLDNO
+  
+  public AddPOCustomInfo(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+  /*
+  Main method
+  */
+  public void main() {
+    logger.debug("In main")
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+		iPUNO = mi.inData.get("PUNO") == null ? "" : mi.inData.get("PUNO")
+		iLDNO = mi.inData.get("LDNO") == null ? "" : mi.inData.get("LDNO")
+		
+		//Validates the input parameters
+		 if (!validatePUNO(iCONO, iPUNO)) {
+      mi.error("Purchase order number does not exist")
+      return
+    }
+			insertRecord()
+  }
+  
+  /**
+  *Validate the input parameter
+  */
+  private boolean validatePUNO(int inCONO, String inPUNO){
+    DBAction dbAction = database.table("MPHEAD").index("00").selection("IACONO", "IAPUNO").build()
+    DBContainer MPHEAD = dbAction.getContainer()
+    
+    MPHEAD.set("IACONO", inCONO)
+    MPHEAD.set("IAPUNO", inPUNO)
+    if (!dbAction.read(MPHEAD)) {
+      return false
+    }
+     return true  
+  }
+	
+	/**
+	 * Inserts record in the EXTMPH table
+	 *
+	 */
+	private void insertRecord(){
+		DBAction dbAction = database.table("EXTMPH").index("00").selection("EXCONO","EXPUNO").build()
+		DBContainer EXTMPH = dbAction.getContainer()
+
+		EXTMPH.set("EXCONO", iCONO)
+		EXTMPH.set("EXPUNO", iPUNO)
+		EXTMPH.set("EXLDNO", iLDNO)
+
+		
+		EXTMPH.set("EXRGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTMPH.set("EXRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		EXTMPH.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTMPH.set("EXCHNO", 1)
+		EXTMPH.set("EXCHID", program.getUser())
+		
+		dbAction.insert(EXTMPH,recordExists)
+	}	
+	
+	Closure recordExists = {
+		mi.error("Record Already Exists")
+	}
+  
+}

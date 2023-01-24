@@ -1,0 +1,64 @@
+
+/**
+* README
+* Deletes a record from the table EXTMPH
+*
+* Name: EXT100MI.DelPOCustomInfo
+* Description: Deletes a record from the EXTMPH table
+* Date	      Changed By            Description
+* 20221031	  Pranoti Khatavkar    Deletes a record from the EXTMPH table
+*
+*/
+
+public class DelPOCustomInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+	
+	
+	//Input fields
+		private int iCONO
+		private String iPUNO
+  
+  public DelPOCustomInfo(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+  /**
+   * Main method
+   */
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+    iPUNO = mi.inData.get("PUNO") == null ? "" : mi.inData.get("PUNO")
+    
+    deleteRecord()
+  }
+  
+  	/**
+	 * Deletes a record from the EXTMPH table
+	 *
+	 */
+	private void deleteRecord(){
+		DBAction dbAction = database.table("EXTMPH").index("00").selection("CONO","PUNO").build()
+		DBContainer EXTMPH = dbAction.getContainer()
+
+		EXTMPH.set("EXCONO", iCONO.toInteger())
+		EXTMPH.set("EXPUNO", iPUNO)
+	
+		if(!dbAction.readLock(EXTMPH, deleteCallBack)){
+		  mi.error("Record does not exist in EXTMPH table")
+		  return
+		}
+
+	}
+    /**
+	 * Closure for table EXTMPH deletion
+	 */
+	Closure<?> deleteCallBack = { LockedResult lockedResult ->
+		lockedResult.delete()
+	}
+}
