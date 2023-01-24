@@ -1,0 +1,70 @@
+/*
+ * README
+ * This extension is being used to Get records to EXTDSI table for shipment related custom field information. 
+ *
+ * Name: EXT100MI.GetShipCstmInfo
+ * Description: Getting records to EXTDSI table
+ * Date	      Created By                    Description
+ * 20221014	  Pranoti Khatavkar             Getting records from EXTDSI table
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+public class GetShipCstmInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+		//Input fields
+	private int iCONO,iCONN
+
+
+	
+  public GetShipCstmInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+  public void main() {
+    logger.debug("In Main method")
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer   
+		iCONN = mi.inData.get("CONN") == null || mi.inData.get("CONN").trim() in ["", "?"] ? 0 : mi.inData.get("CONN").trim().toInteger()
+		
+		logger.debug("CONN:"+iCONN)
+		//Fetch the information
+		getRecordFromEXTDSI()
+		
+  }
+  
+  /**
+	 * Get record from EXTDSI table
+	 */
+  private void getRecordFromEXTDSI(){
+    logger.debug("In getRecordFromEXTDSI method")
+    DBAction dbAction = database.table("EXTDSI").index("00").selectAllFields().build()
+		DBContainer EXTDSI = dbAction.getContainer()
+
+		EXTDSI.set("EXCONO", iCONO)
+		EXTDSI.set("EXCONN", iCONN)
+		
+		// Fetch the information form the table and output it
+    if(dbAction.read(EXTDSI)) {
+			mi.outData.put("CONO", EXTDSI.getInt("EXCONO").toString())
+			mi.outData.put("CONN", EXTDSI.getInt("EXCONN").toString())
+			mi.outData.put("RFID", EXTDSI.getString("EXRFID"))
+			mi.outData.put("NOPL", EXTDSI.getString("EXNOPL"))
+			mi.outData.put("TLTP", EXTDSI.getString("EXTLTP"))
+			mi.write()
+		} else {
+			mi.error("Record does not exist in EXTDSI table")
+		}
+  }
+}

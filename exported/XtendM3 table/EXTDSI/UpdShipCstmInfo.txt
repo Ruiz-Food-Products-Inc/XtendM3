@@ -1,0 +1,87 @@
+/**
+ * README
+ * This extension is being used as an extension of EXTDSI table
+ * This is used to update shipment related custom information
+ * Name: EXT100MI.UpdShipCstmInfo
+ * Description: To updateto update shipment related custom information in EXTDSI table
+ * Date	      Changed By            Description
+ * 20221017  Pranoti Khatavkar           To update a record in the EXTDSI table
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdShipCstmInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+	
+  	//Primary key fields
+	private int iCONO,iCONN
+  
+  //Alpha and numeric fields
+  private String iRFID,iNOPL,iTLTP
+  
+  public UpdShipCstmInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+	}
+  
+  public void main() {
+    logger.debug("In Main method")
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+	  iCONN = mi.inData.get("CONN") == null ? 0 : mi.inData.get("CONN") as Integer
+		iRFID = mi.inData.get("RFID") == null ? "" : mi.inData.get("RFID")
+		iNOPL = mi.inData.get("NOPL") == null ? "" : mi.inData.get("NOPL")
+		iTLTP = mi.inData.get("TLTP") == null ? "" : mi.inData.get("TLTP")
+	
+		
+		//If no error then update the record
+		changeRecordinEXTDSI()
+    
+  }
+  /**
+	 * Update record in the EXTDSI table
+	 *
+	 */
+	private void changeRecordinEXTDSI(){
+	  logger.debug("In changeRecordinEXTDSI method")
+		DBAction dbAction = database.table("EXTDSI").index("00").selectAllFields().build()
+		DBContainer EXTDSI = dbAction.getContainer()
+
+		EXTDSI.set("EXCONO", iCONO)
+		if(iCONN!=0){
+     EXTDSI.set("EXCONN", iCONN)
+		}
+	
+		// Update changed information
+		if (!dbAction.readLock(EXTDSI, updateCallBack)) {
+			mi.error("Record does not exist in EXTDSI table")
+			return
+		}
+	}
+	
+	/**
+	 * Closure for EXTDSI Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+		if(iRFID.trim() != "") {lockedResult.set("EXRFID", iRFID) }
+		if(iNOPL.trim() != "") {lockedResult.set("EXNOPL", iNOPL) }
+		if(iTLTP.trim() != "") {lockedResult.set("EXTLTP", iTLTP) }
+	
+		
+		// Update changed information
+		lockedResult.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+	  lockedResult.setInt("EXCHNO", (lockedResult.getInt("EXCHNO") + 1))
+		lockedResult.set("EXCHID", program.getUser())
+		lockedResult.update()
+  
+  }
+  
+}

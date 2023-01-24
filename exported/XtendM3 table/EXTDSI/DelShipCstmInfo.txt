@@ -1,0 +1,63 @@
+
+/**
+* README
+* Deletes a record from the table EXTDSI
+*
+* Name: EXT100MI.DelShipCstmInfo
+* Description: Deletes a record from the EXTDSI table
+* Date	      Changed By            Description
+* 20221018	  Pranoti Khatavkar    Deletes a record from the EXTDSI table
+*
+*/
+
+public class DelShipCstmInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+  
+  
+  	//Input fields
+	private int iCONO,iCONN
+	private String iRFID,iNOPL,iTLTP
+	
+  public DelShipCstmInfo(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+	  iCONN = mi.inData.get("CONN") == null ? 0 : mi.inData.get("CONN") as Integer
+
+		deleteRecordFromEXTDSI()
+  }
+  
+  	/**
+	 * Deletes a record from the EXTDSI table
+	 *
+	 */
+	private void deleteRecordFromEXTDSI(){
+		DBAction dbAction = database.table("EXTDSI").index("00").selection("CONO","CONN").build()
+		DBContainer EXTDSI = dbAction.getContainer()
+
+		EXTDSI.set("EXCONO", iCONO.toInteger())
+		EXTDSI.set("EXCONN", iCONN.toInteger())
+
+		if(!dbAction.readLock(EXTDSI, deleteCallBack)){
+		  mi.error("Record does not exist in EXTDSI table")
+		  return
+		}
+
+	}
+    /**
+	 * Closure for table EXTDSI deletion
+	 */
+
+	Closure<?> deleteCallBack = { LockedResult lockedResult ->
+		lockedResult.delete()
+	}
+  
+}

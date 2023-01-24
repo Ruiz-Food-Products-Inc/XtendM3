@@ -1,0 +1,106 @@
+/*
+ * README
+ * This extension is being used to Add records to EXTDSI table for shipment related custom field information. 
+ *
+ * Name: EXT100MI.AddShipCstmInfo
+ * Description: Adding records to EXTDSI table
+ * Date	      Created By                    Description
+ * 20221014	  Pranoti Khatavkar             Adding records to EXTDSI table
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+public class AddShipCstmInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+  private final MICallerAPI miCaller
+ 	
+	//Input fields
+	private int iCONO,iCONN
+  private String iRFID,iNOPL,iTLTP
+
+  //Indication of the error flag
+	private boolean IsValidShipment
+  
+  public AddShipCstmInfo(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program,MICallerAPI miCaller) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+		this.miCaller = miCaller
+  }
+  
+  /**
+   * Main method
+   */
+  public void main() {
+    logger.debug("In main")
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+    iCONN = mi.inData.get("CONN") == null ? 0 : mi.inData.get("CONN") as Integer
+		iRFID = mi.inData.get("RFID") == null ? "" : mi.inData.get("RFID")
+		iNOPL = mi.inData.get("NOPL") == null ? "" : mi.inData.get("NOPL")
+		iTLTP = mi.inData.get("TLTP") == null ? "" : mi.inData.get("TLTP")
+		
+		//Validates the input shipment number
+    validateShipment(iCONO,iCONN)
+
+     logger.debug("Is valid shipment:"+IsValidShipment)
+		//Flag is set to False if an error exists in the input fields
+		if(IsValidShipment){
+			insertRecord()
+		}
+    
+  }
+  /**
+  * Validate the input parameter
+  */ 
+  	private validateShipment (int cono, int conn){
+  	logger.debug("In validateShipment")
+  	Map<String,String> params = ["CONN" : conn.toString().trim()];
+
+		Closure<?> handler = { Map<String, String> response ->
+			if(response.error){
+				mi.error("Shipment number"+conn+"does not exist")
+				IsValidShipment = false;
+			}else{
+				IsValidShipment = true; // This means no error
+			}
+		};
+		miCaller.call("DRS100MI","GetShipment", params, handler)
+	}
+	
+		/**
+	 * Inserts record in the EXTDSI table
+	 *
+	 */
+	private void insertRecord(){
+	  logger.debug("In insertRecord")
+		DBAction dbAction = database.table("EXTDSI").index("00").selection("EXCONO","EXCONN").build()
+		DBContainer EXTDSI = dbAction.getContainer()
+
+		EXTDSI.set("EXCONO", iCONO)
+		EXTDSI.set("EXCONN", iCONN)
+		EXTDSI.set("EXRFID", iRFID)
+		EXTDSI.set("EXNOPL", iNOPL)
+		EXTDSI.set("EXTLTP", iTLTP)
+		
+		EXTDSI.set("EXRGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTDSI.set("EXRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		EXTDSI.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTDSI.set("EXCHNO", 1)
+		EXTDSI.set("EXCHID", program.getUser())
+		
+		dbAction.insert(EXTDSI,recordExists)
+
+	}	
+	
+	Closure recordExists = {
+		mi.error("Record Already Exists")
+	}
+}
