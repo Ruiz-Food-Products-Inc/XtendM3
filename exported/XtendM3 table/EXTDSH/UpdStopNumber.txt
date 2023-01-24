@@ -1,0 +1,193 @@
+/**
+ * README
+ * This is used to To update Stop number in EXTDSH.
+ * 
+ * Name: EXT100MI.UpdStopNumber
+ * Description: To update Stop number in EXTDSH
+ * 
+ * Date	      Changed By            Description
+ * 20221011	  PranotiK      To update Stop number in EXTDSH .
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+
+public class UpdStopNumber extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+	//Input fields
+	  private int iCONO, iCONN,iDLIX,iMULS,inINOU,inDLIX,inCONN
+		private String iRIDN,inRIDN
+	
+	
+  public UpdStopNumber(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+  public void main() {
+   logger.info("In main method")
+   iCONO = program.LDAZD.CONO
+   iCONN = (mi.inData.get("CONN") == null || mi.inData.get("CONN").trim().isEmpty()) ? 0 : mi.inData.get("CONN") as Integer
+   iDLIX = (mi.inData.get("DLIX") == null || mi.inData.get("DLIX").trim().isEmpty()) ? 0 : mi.inData.get("DLIX") as Integer
+   iMULS = (mi.inData.get("MULS") == null || mi.inData.get("MULS").trim().isEmpty()) ? 0 : mi.inData.get("MULS") as Integer
+   iRIDN = (mi.inData.get("RIDN") == null || mi.inData.get("RIDN").trim().isEmpty()) ? "" : mi.inData.get("RIDN")
+ 
+   checkDCONSIRecord()
+    
+  }
+  
+   private void checkDCONSIRecord(){
+	   logger.info("In checkDCONSIRecord")
+	   DBAction dbAction = database.table("DCONSI").index("00").selection("DACONO","DACONN").build()
+	   DBContainer DCONSI = dbAction.getContainer()
+	   
+	   DCONSI.set("DACONO",iCONO)
+	   DCONSI.set("DACONN",iCONN)
+	   
+	   if(dbAction.read(DCONSI)){
+	     int shipmentNo = DCONSI.get("DACONN")
+	     logger.info("DCONSI shipment no :"+shipmentNo+"MULS is:"+iMULS)
+        
+        if(iMULS == 1 ){
+            checkWithDLIX()
+        }else{
+            updateWithRIDN()
+        }
+    }
+
+}
+ 	/**
+	 * Update record in the EXTDSH table based on RIDN
+	 */
+	private void updateWithRIDN(){
+	  logger.info("In updateWithRIDN:"+iRIDN)
+		DBAction dbAction = database.table("EXTDSH").index("20").selection("EXCONO","EXINOU","EXRIDN","EXDLIX").build()
+		DBContainer EXTDSH = dbAction.getContainer()
+
+    logger.debug("CONO:"+iCONO+"RIDN:"+iRIDN)
+		EXTDSH.set("EXCONO", iCONO)
+		EXTDSH.set("EXINOU", 1)
+		EXTDSH.set("EXRIDN",iRIDN)
+		EXTDSH.set("EXDLIX",iDLIX)
+	
+		// Update changed information
+		dbAction.readLock(EXTDSH, updateCallBack)
+		
+		if (!dbAction.readLock(EXTDSH, updateCallBack)) {
+			//mi.error("Record does not exist in EXTDSH")
+			//return
+			logger.debug("Record does not exist in EXTDSH")
+		}
+	}
+	
+	/**
+	 * Closure for EXTDSH Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+
+	  logger.debug("MULS is:"+iMULS)
+		lockedResult.set("EXMULS", iMULS)
+		
+		// Update changed information
+		lockedResult.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.set("EXCHID", program.getUser())
+		lockedResult.setInt("EXCHNO", (lockedResult.getInt("EXCHNO") + 1))
+		lockedResult.update()
+  }
+ 
+ /**
+	 * Update record in the EXTDSH table on DLIX
+	 */
+ private void checkWithDLIX(){
+    logger.info("In checkWithDLIX")
+    if(iDLIX==0 ||  mi.inData.get("DLIX") == null){
+      mi.error("Delivery number must be entered")
+    }else{
+      checkMHDISHData()
+    }
+	
+ }
+ 
+ 
+ private void checkMHDISHData(){
+     logger.info("In checkMHDISHData")
+     
+    DBAction dbAction = database.table("MHDISH").index("00").selection("OQCONO","OQINOU","OQDLIX","OQCONN","OQRIDN").build()
+		DBContainer MHDISH = dbAction.getContainer()
+
+		MHDISH.set("OQCONO", iCONO)
+		MHDISH.set("OQINOU", 1)
+		MHDISH.set("OQDLIX",iDLIX)
+		
+		if (!dbAction.read(MHDISH)) {
+      logger.info("Record does not exist in MHDISH")
+    }else{
+		         
+		     inCONN = MHDISH.get("OQCONN")
+		     inINOU = MHDISH.get("OQINOU")
+		     inDLIX = MHDISH.get("OQDLIX")
+		     inRIDN = MHDISH.get("OQRIDN")
+		          
+		  logger.info("MHDISH Shipment:"+inCONN+"INOU in MHDISH:"+inINOU+"DLIX:"+inDLIX+"inRIDN:"+inRIDN)
+		  if(inCONN>0){
+		    	checkInEXTDSH()
+		  }
+		}
+ }
+ 
+ 
+ 
+ private void checkInEXTDSH(){
+    logger.info("In checkInEXTDSH")
+     DBAction dbEXTDSH = database.table("EXTDSH").index("00").selection("EXCONO","EXINOU", "EXDLIX").build()
+    DBContainer container = dbEXTDSH.getContainer()
+    
+    container.set("EXCONO", iCONO)
+    container.set("EXINOU", inINOU)
+    container.set("EXDLIX", inDLIX)
+    
+    if (!dbEXTDSH.read(container)) {
+   // record does not exist so write in EXTDSH as new record
+    DBAction dbAction = database.table("EXTDSH").index("00").selection("EXCONO","EXINOU","EXDLIX").build()
+		DBContainer EXTDSH = dbAction.getContainer()
+
+		EXTDSH.set("EXCONO", iCONO)
+		EXTDSH.set("EXINOU", inINOU)
+		EXTDSH.set("EXDLIX", inDLIX)		
+	  EXTDSH.set("EXCONN", inCONN)
+    EXTDSH.set("EXRIDN", inRIDN)
+    EXTDSH.set("EXMULS", iMULS)
+		
+		EXTDSH.set("EXRGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTDSH.set("EXRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		EXTDSH.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTDSH.set("EXCHNO", 1)
+		EXTDSH.set("EXCHID", program.getUser())
+		
+		dbAction.insert(EXTDSH,recordExists)
+    }
+ }
+ 
+ 	Closure recordExists = {
+		mi.error("Record Already Exists")
+		logger.debug("Record already exists")
+	}
+ 
+}
+ 
+ 
+ 
+ 
+ 
+ 

@@ -1,0 +1,113 @@
+/*
+ * README
+ * This extension is being used to Add records to EXTDSH table for delivery related custom information. 
+ *
+ * Name: EXT100MI.AddDelyCstmInfo
+ * Description: Adding records to EXTDSH table
+ * Date	      Created By                    Description
+ * 20221018	  Pranoti Khatavkar             Adding records to EXTDSH table
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+
+public class AddDelyCstmInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+	
+	
+	//Input fields
+	private int iCONO,iINOU,iDLIX, iCONN,iMULS
+  private String iRIDN,iSEAL,iTRLN
+  
+  
+  public AddDelyCstmInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program  
+  }
+  
+  
+   	/**
+	 * main method
+	 *
+	 */
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+    iINOU = mi.inData.get("INOU") == null ? 0 : mi.inData.get("INOU") as Integer
+    iDLIX = mi.inData.get("DLIX") == null ? 0 : mi.inData.get("DLIX") as Integer
+    iCONN = mi.inData.get("CONN") == null ? 0 : mi.inData.get("CONN") as Integer
+		iRIDN = mi.inData.get("RIDN") == null ? "" : mi.inData.get("RIDN")
+    iMULS = mi.inData.get("MULS") == null || mi.inData.get("MULS").trim() in ["", "?"] ? 0 : mi.inData.get("MULS").trim().toInteger()
+    iSEAL = mi.inData.get("SEAL") == null ? "" : mi.inData.get("SEAL")
+    iTRLN = mi.inData.get("TRLN") == null ? "" : mi.inData.get("TRLN")
+    
+    logger.debug("Input MULS is:"+iMULS)
+    
+    //Validates the input parameters
+		if(!validateDeliveryNo(iCONO, iINOU,iDLIX)){
+		  mi.error("Delivery number does not exist")
+		  return
+		}
+			insertRecordInEXTDSH()
+    
+  }
+  
+    //Validate the input parameter 
+  private boolean validateDeliveryNo(int inCONO, int inINOU,int inDLIX){
+    logger.debug("Validate input Delivery number")
+    DBAction dbAction = database.table("MHDISH").index("00").selection("OQCONO","OQINOU", "OQDLIX").build()
+    DBContainer MHDISH = dbAction.getContainer()
+    
+    MHDISH.set("OQCONO", inCONO)
+    MHDISH.set("OQINOU", inINOU)
+    MHDISH.set("OQDLIX", inDLIX)
+    
+    if (!dbAction.read(MHDISH)) {
+     logger.debug("Record not found")
+     return false
+    }
+     logger.debug("Record found")
+     return true
+    }
+  
+  	/**
+	 * Inserts record in the EXTDSH table
+	 *
+	 */
+	private void insertRecordInEXTDSH(){
+		DBAction dbAction = database.table("EXTDSH").index("00").selection("EXCONO","EXINOU","EXDLIX").build()
+		DBContainer EXTDSH = dbAction.getContainer()
+
+		EXTDSH.set("EXCONO", iCONO)
+		EXTDSH.set("EXINOU", iINOU)
+		EXTDSH.set("EXDLIX", iDLIX)		
+	  EXTDSH.set("EXCONN", iCONN)
+    EXTDSH.set("EXRIDN", iRIDN)
+    EXTDSH.set("EXMULS", iMULS)
+    EXTDSH.set("EXSEAL", iSEAL)
+    EXTDSH.set("EXTRLN", iTRLN)
+		
+		EXTDSH.set("EXRGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTDSH.set("EXRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		EXTDSH.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTDSH.set("EXCHNO", 1)
+		EXTDSH.set("EXCHID", program.getUser())
+		
+		dbAction.insert(EXTDSH,recordExists)
+
+	}	
+	
+	Closure recordExists = {
+		mi.error("Record Already Exists in EXTDSH table")
+	}
+  
+}

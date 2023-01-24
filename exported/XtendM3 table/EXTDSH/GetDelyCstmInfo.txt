@@ -1,0 +1,79 @@
+/**
+ * README
+ * This extension is being used as an extension of EXTDSH table
+ * This is used to get record from EXTDSH.
+ * Name: EXT100MI.GetDelyCstmInfo
+ * Description: To get record from EXTDSH table
+ * Date	      Changed By            Description
+ * 20221031	  Pranoti Khatavkar     To get a record in the EXTDSH table
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+
+public class GetDelyCstmInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+	
+	//Input fields
+	private int iCONO,iINOU,iDLIX
+	
+  
+  public GetDelyCstmInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+	}
+  
+    /**
+	 * Main method
+	 */
+  public void main() {
+     iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+     iINOU = mi.inData.get("INOU") == null ? 0 : mi.inData.get("INOU") as Integer
+     iDLIX = mi.inData.get("DLIX") == null ? 0 : mi.inData.get("DLIX") as Integer
+     
+      //Fetch the information
+		getRecordFromEXTDSH()
+		
+  }
+  
+    /**
+	 * Get record from EXTDSH table
+	 */
+  private void getRecordFromEXTDSH(){
+    logger.debug("In getRecordFromEXTDSH method CONO:" + iCONO + "INOU :" + iINOU + "DLIX :"+iDLIX)
+    
+    DBAction dbAction = database.table("EXTDSH").index("00").selectAllFields().build()
+		DBContainer EXTDSH = dbAction.getContainer()
+
+		EXTDSH.set("EXCONO", iCONO)
+		EXTDSH.set("EXINOU", iINOU)
+		EXTDSH.set("EXDLIX", iDLIX)
+		
+		// Fetch the information form the table and output it
+    if(dbAction.read(EXTDSH)) {
+		 	mi.outData.put("CONO", EXTDSH.getInt("EXCONO").toString())
+		 	mi.outData.put("INOU", EXTDSH.getInt("EXINOU").toString())
+		 	mi.outData.put("DLIX", EXTDSH.getLong("EXDLIX").toString())
+		 	mi.outData.put("CONN", EXTDSH.getInt("EXCONN").toString())
+		 	mi.outData.put("RIDN", EXTDSH.getString("EXRIDN"))
+		 	mi.outData.put("MULS", EXTDSH.getInt("EXMULS").toString())
+		 	mi.outData.put("SEAL", EXTDSH.getString("EXSEAL"))
+		 	mi.outData.put("TRLN", EXTDSH.getString("EXTRLN"))
+		 
+			mi.write()
+		} else {
+			mi.error("Record does not exist")
+		}
+  }
+  
+}

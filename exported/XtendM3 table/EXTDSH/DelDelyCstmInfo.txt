@@ -1,0 +1,109 @@
+/**
+ * README
+ * This is used to delete the record from EXTDSH 
+ * 
+ * Name: EXT100MI.DelDelyCstmInfo
+ * Description: To delete the record from EXTDSH 
+ * 
+ * Date	      Created By            Description
+ * 20221021	  Pranoti Khatavkar     To delete the record from EXTDSH 
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+
+public class DelDelyCstmInfo extends ExtendM3Transaction {
+  private final MIAPI mi;
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+  
+  	//Input fields
+  	//iCSTH = Shipment status-Highest
+	private int iCONO,iINOU,iDLIX,iCONN,iMULS,iCSTH
+	private String iRIDN
+     
+	
+  public DelDelyCstmInfo(MIAPI mi,DatabaseAPI database,LoggerAPI logger,ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+    this.logger = logger
+    this.program = program
+  }
+  
+  /*
+  Main method
+  */
+  public void main() {
+    logger.debug("In Main")
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+    iINOU = mi.inData.get("INOU") == null ? 0 : mi.inData.get("INOU") as Integer
+    iDLIX = mi.inData.get("DLIX") == null ? 0 : mi.inData.get("DLIX") as Integer
+	  iCONN = mi.inData.get("CONN") == null ? 0 : mi.inData.get("CONN") as Integer
+
+	  //Check record in DCONSI table
+	  checkDCONSIRecord(iCONO,iCONN)
+
+  }
+  
+  /*
+  Check record in DCONSI table and if shipment status-highest is less than 10 then delete the record
+  */
+  private checkDCONSIRecord(int inCONO, int inCONN){
+    logger.debug("Check DCONSI")
+    DBAction dbAction = database.table("DCONSI").index("00").selection("DACONO", "DACONN","DACSTH").build()
+    DBContainer DCONSI = dbAction.getContainer()
+    DCONSI.set("DACONO", inCONO)
+    DCONSI.set("DACONN", inCONN)
+   
+    if(dbAction.read(DCONSI)){
+         logger.debug("Record Found")
+      String Out_CSTH = (DCONSI.get("DACSTH")).toString()
+       if(Out_CSTH.trim() != ""){
+       iCSTH = Out_CSTH.toInteger()
+      }else{
+        iCSTH = 00
+      }
+      logger.debug("CSTH is:"+iCSTH.toString())
+     if (iCSTH < 10) {
+         deleteRecord()
+       }else{
+         mi.error("Shipment status must be less than 10")
+       }
+      }
+    }
+
+  	/*
+	  Deletes a record from the EXTDSH table
+	 */
+	private void deleteRecord(){
+	  logger.debug("Delete the record")
+		DBAction dbAction = database.table("EXTDSH").index("10").selection("CONO","INOU","CONN","DLIX").build()
+		DBContainer EXTDSH = dbAction.getContainer()
+
+		EXTDSH.set("EXCONO", iCONO.toInteger())
+		EXTDSH.set("EXINOU", iINOU.toInteger())
+		EXTDSH.set("EXCONN", iCONN.toInteger())
+		EXTDSH.set("EXDLIX", iDLIX.toInteger())
+	
+
+		if(!dbAction.readLock(EXTDSH, deleteCallBack)){
+		  mi.error("Record does not exist")
+		  return
+		}
+
+	}
+    /**
+	 * Closure for table EXTDSI deletion
+	 */
+
+	Closure<?> deleteCallBack = { LockedResult lockedResult ->
+		lockedResult.delete()
+	}
+  
+}
