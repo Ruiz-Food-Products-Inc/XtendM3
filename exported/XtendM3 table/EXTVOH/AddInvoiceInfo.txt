@@ -1,0 +1,107 @@
+/*
+ * README
+ * This extension is being used to Add records to EXTVOH table for CO invoice related custom field information. 
+ *
+ * Name: EXT180MI.AddInvoiceInfo
+ * Description: Adding records to EXTVOH table
+ * Date	      Created By                    Description
+ * 20221227	  Pranoti Khatavkar             Adding records to EXTVOH table to store CO invoce related data
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+public class AddInvoiceInfo extends ExtendM3Transaction {
+  private final MIAPI mi;
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+	
+	private int iCONO,iYEA4,iIVNO
+	private String iDIVI,iINPX,iTRST,iSESN,iDATE,iTIME,iMESG
+
+  
+  public AddInvoiceInfo(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi;
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+   /**
+   * Main method
+   * @param
+   * @return
+  */
+  public void main() {
+    logger.debug("In main")
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+    iYEA4 = mi.inData.get("YEA4") == null ? 0 : mi.inData.get("YEA4") as Integer
+    iIVNO = mi.inData.get("IVNO") == null ? 0 : mi.inData.get("IVNO") as Integer
+    iDIVI = mi.inData.get("DIVI") == null ? "" : mi.inData.get("DIVI")
+    iINPX = mi.inData.get("INPX") == null ? "" : mi.inData.get("INPX")
+		iTRST = mi.inData.get("TRST") == null ? "" : mi.inData.get("TRST")
+		iSESN = mi.inData.get("SESN") == null ? "" : mi.inData.get("SESN")
+    iDATE = mi.inData.get("DATE") == null ? "" : mi.inData.get("DATE")
+    iTIME = mi.inData.get("TIME") == null ? "" : mi.inData.get("TIME")
+    iMESG = mi.inData.get("MESG") == null ? "" : mi.inData.get("MESG")
+    
+    if (!validDivision(iCONO, iDIVI)) {
+      mi.error("Division does not exist")
+      return
+    }
+      insertRecord()
+
+  }
+  
+  //Check if division is valid 
+  private boolean validDivision(int inCONO,String inDIVI){
+     logger.debug("In validDivision")
+     
+    DBAction dbCMNDIV = database.table("CMNDIV").index("00").selection("CCCONO", "CCDIVI").build()
+    DBContainer CMNDIV = dbCMNDIV.getContainer()
+    CMNDIV.set("CCCONO", inCONO)
+    CMNDIV.set("CCDIVI", inDIVI)
+    if (!dbCMNDIV.read(CMNDIV)) {
+      return false
+    }
+    return true
+  }
+  
+  //insert record in EXTVOH table
+ private insertRecord(){
+    logger.debug("In insertRecord")
+    
+    DBAction dbEXTVOH = database.table("EXTVOH").index("00").selection("EXCONO","EXDIVI","EXYEA4","EXINPX","EXIVNO").build()
+		DBContainer EXTVOH = dbEXTVOH.getContainer()
+
+		EXTVOH.set("EXCONO", iCONO)
+		EXTVOH.set("EXDIVI", iDIVI)
+		EXTVOH.set("EXYEA4", iYEA4)
+		EXTVOH.set("EXINPX", iINPX)
+		EXTVOH.set("EXIVNO", iIVNO)
+		EXTVOH.set("EXTRST", iTRST)
+		EXTVOH.set("EXSESN", iSESN)
+		EXTVOH.set("EXDATE", iDATE)
+		EXTVOH.set("EXTIME", iTIME)
+		EXTVOH.set("EXMESG", iMESG)
+		
+		EXTVOH.set("EXRGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTVOH.set("EXRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		EXTVOH.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTVOH.set("EXCHNO", 1)
+		EXTVOH.set("EXCHID", program.getUser())
+		
+		dbEXTVOH.insert(EXTVOH,recordExists)
+    
+  }
+  
+  	Closure recordExists = {
+		mi.error("Record Already Exists");
+	}
+	
+}

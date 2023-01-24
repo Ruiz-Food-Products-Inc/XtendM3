@@ -1,0 +1,101 @@
+/**
+ * README
+ * This extension is being used as an extension of EXTVOH table
+ * Name: EXT180MI.UpdInvoiceInfo
+ * Description: To update a record in the EXTVOH table
+ * Date	      Changed By            Description
+ * 20221227   pranoti Khatavkar    To update data in the table EXTMVOH table
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
+
+public class UpdInvoiceInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+//Input Fields  
+  private int iCONO,iYEA4,iIVNO
+  private String iDIVI,iINPX,iTRST,iSESN,iDATE,iTIME,iMESG
+  
+  public UpdInvoiceInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+   /**
+   * Main method
+   * @param
+   * @return
+  */
+  public void main() {
+    logger.debug("In Main")
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+    iYEA4 = mi.inData.get("YEA4") == null ? 0 : mi.inData.get("YEA4") as Integer
+    iIVNO = mi.inData.get("IVNO") == null ? 0 : mi.inData.get("IVNO") as Integer
+    iDIVI = mi.inData.get("DIVI") == null ? "" : mi.inData.get("DIVI")
+    iINPX = mi.inData.get("INPX") == null ? "" : mi.inData.get("INPX")
+    iSESN = mi.inData.get("SESN") == null ? "" : mi.inData.get("SESN")
+    iDATE = mi.inData.get("DATE") == null ? "" : mi.inData.get("DATE")
+    iTIME = mi.inData.get("TIME") == null ? "" : mi.inData.get("TIME")
+		iMESG = mi.inData.get("MESG") == null ? "" : mi.inData.get("MESG")
+		
+		//If no error then update the record
+		updateRecord();
+  }
+  
+  	
+	/**
+	 * Update the record from EXTVOH table
+	 *
+	 */
+  private updateRecord(){
+    logger.debug("In updateRecord")
+		DBAction dbEXTVOH = database.table("EXTVOH").index("00").selectAllFields().build()
+		DBContainer EXTVOH = dbEXTVOH.getContainer()
+
+		EXTVOH.set("EXCONO", iCONO)
+		EXTVOH.set("EXDIVI", iDIVI)
+		EXTVOH.set("EXYEA4", iYEA4)
+		EXTVOH.set("EXINPX", iINPX)
+		EXTVOH.set("EXIVNO", iIVNO)
+		logger.debug(iCONO+","+iDIVI+","+iYEA4+","+iINPX+","+iIVNO)
+		// Update changed information
+		if (!dbEXTVOH.readLock(EXTVOH, updateCallBack)) {
+			mi.error("Record does not exist")
+			return
+		}
+  }
+  
+  	/**
+	 * Closure for EXTVOH Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+
+		lockedResult.set("EXCONO", iCONO)
+		if(iDIVI.trim() != "") {lockedResult.set("EXDIVI", iDIVI) }
+		lockedResult.set("EXYEA4", iYEA4)
+		lockedResult.set("EXINPX", iINPX)
+		lockedResult.set("EXIVNO", iIVNO)
+		lockedResult.set("EXTRST", iTRST)
+		lockedResult.set("EXSESN", iSESN) 
+		lockedResult.set("EXDATE", iDATE)
+		lockedResult.set("EXTIME", iTIME)
+	  lockedResult.set("EXMESG", iMESG)	
+	  
+		// Update changed information
+		lockedResult.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.setInt("EXCHNO", (lockedResult.getInt("EXCHNO") + 1))
+		lockedResult.set("EXCHID", program.getUser())
+		lockedResult.update()
+  
+  }
+  
+}

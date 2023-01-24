@@ -1,0 +1,81 @@
+/**
+ * README
+ * This extension is being used as an extension of EXTMGH table
+ * This is used to get record from EXTMGH.
+ * Name: EXT100MI.GetDOHeadInfo
+ * Description: To get record from EXTMGH table
+ * Date	      Changed By            Description
+ * 20221227   Pranoti Khatavkar     To getdata from from EXTVOH table
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+public class GetInvoiceInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+	
+	private int iCONO,iYEA4,iIVNO
+  private String iDIVI,iINPX
+  
+  public GetInvoiceInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+    /**
+   * Main method
+   * @param
+   * @return
+  */
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null ? 0 : mi.inData.get("CONO") as Integer
+    iYEA4 = mi.inData.get("YEA4") == null ? 0 : mi.inData.get("YEA4") as Integer
+    iIVNO = mi.inData.get("IVNO") == null ? 0 : mi.inData.get("IVNO") as Integer
+		iDIVI = mi.inData.get("DIVI") == null ? 0 : mi.inData.get("DIVI")
+		iINPX = mi.inData.get("INPX") == null ? 0 : mi.inData.get("INPX")
+		
+		 //Fetch the information
+		getRecord();
+  }
+  
+   /**
+	 * Get record from EXTVOH table
+	 */
+  private void getRecord(){
+    logger.debug("In getRecord method");
+    
+    DBAction dbEXTVOH = database.table("EXTVOH").index("00").selectAllFields().build()
+		DBContainer EXTVOH = dbEXTVOH.getContainer()
+
+		EXTVOH.set("EXCONO", iCONO)
+		EXTVOH.set("EXDIVI", iDIVI)
+		EXTVOH.set("EXYEA4", iYEA4)
+		EXTVOH.set("EXINPX", iINPX)
+		EXTVOH.set("EXIVNO", iIVNO)
+		
+		// Fetch the information form the table and output it
+    if(dbEXTVOH.read(EXTVOH)) {
+		 	mi.outData.put("CONO", EXTVOH.getInt("EXCONO").toString());
+		 	mi.outData.put("DIVI", EXTVOH.getString("EXDIVI"));
+		 	mi.outData.put("YEA4", EXTVOH.getInt("EXYEA4").toString());
+			mi.outData.put("INPX", EXTVOH.getString("EXINPX"));
+			mi.outData.put("IVNO", EXTVOH.getInt("EXIVNO").toString());
+			mi.outData.put("TRST", EXTVOH.getString("EXTRST"));
+			mi.outData.put("SESN", EXTVOH.getString("EXSESN"));
+			mi.outData.put("DATE", EXTVOH.getString("EXDATE"));
+			mi.outData.put("TIME", EXTVOH.getString("EXTIME"));
+			mi.outData.put("MESG", EXTVOH.getString("EXMESG"));
+			mi.write()
+		} else {
+			mi.error("Record does not exist")
+		}
+  }
+}
