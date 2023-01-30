@@ -1,0 +1,99 @@
+/*
+ * README
+ * This extension is being used to get Sales Tax Exemption list
+ * 
+ * Name: EXT050MI.GetSalesTaxExmp
+ * Description: Get Sales Tax Exemption
+ * 
+ * Date	      Changed By      Description
+ * 20221015	  Girish Hosamani    Get Sales Tax Exemption List
+ *
+ */
+ 
+public class GetSalesTaxExmp extends ExtendM3Transaction {
+	private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+	
+	//Primary key fields
+	private int iCONO, iTYPE, iPRIO
+	private String iDIVI
+	
+	//Alphas and numeric fields
+	private int iFRDT, iTODT
+	private String iOBV1, iOBV2, iOBV3, iOBV4
+
+  public GetSalesTaxExmp(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  /*
+   * Main method
+   * @param
+   * @return
+  */
+  
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+	  iTYPE = mi.inData.get("TYPE") == null || mi.inData.get("TYPE").trim() in ["", "?"] ? 0 : mi.inData.get("TYPE").trim().toInteger()
+    iPRIO = mi.inData.get("PRIO") == null || mi.inData.get("PRIO").trim() in ["", "?"] ? 0 : mi.inData.get("PRIO").trim().toInteger()
+    iFRDT = mi.inData.get("FRDT") == null || mi.inData.get("FRDT").trim() in ["", "?"] ? 0 : mi.inData.get("FRDT").trim().toInteger()
+    iTODT = mi.inData.get("TODT") == null || mi.inData.get("TODT").trim() in ["", "?"] ? 0 : mi.inData.get("TODT").trim().toInteger()
+    iDIVI = mi.inData.get("DIVI") == null || mi.inData.get("DIVI").trim() == "?" ? "" : mi.inData.get("DIVI").trim()
+    iOBV1 = mi.inData.get("OBV1") == null || mi.inData.get("OBV1").trim() == "?" ? "" : mi.inData.get("OBV1").trim()
+    iOBV2 = mi.inData.get("OBV2") == null || mi.inData.get("OBV2").trim() == "?" ? "" : mi.inData.get("OBV2").trim()
+    iOBV3 = mi.inData.get("OBV3") == null || mi.inData.get("OBV3").trim() == "?" ? "" : mi.inData.get("OBV3").trim()
+    iOBV4 = mi.inData.get("OBV4") == null || mi.inData.get("OBV4").trim() == "?" ? "" : mi.inData.get("OBV4").trim()
+		
+	  if (iFRDT == 0) {
+      iFRDT = -99999999
+    } 
+    
+    if (iTODT == 0) {
+      iTODT = 99999999
+    }
+		
+	  getRecord()		
+  }
+  
+  /*
+	* Get record from FTXTXC table
+	*
+	*/
+  private void getRecord(){
+		DBAction actionftxtxc = database.table("FTXTXC").index("00").selectAllFields().build()
+		DBContainer ftxtxc = actionftxtxc.getContainer()
+
+		ftxtxc.set("TCCONO", iCONO)
+		ftxtxc.set("TCDIVI", iDIVI)
+		ftxtxc.set("TCTYPE", iTYPE)
+		ftxtxc.set("TCPRIO", iPRIO)
+		ftxtxc.set("TCFRDT", iFRDT)
+		ftxtxc.set("TCTODT", iTODT)
+		if(iOBV1.trim() != "") { ftxtxc.set("TCOBV1", iOBV1) } 
+		if(iOBV2.trim() != "") { ftxtxc.set("TCOBV2", iOBV2) }
+		if(iOBV3.trim() != "") { ftxtxc.set("TCOBV3", iOBV3) } 
+		if(iOBV4.trim() != "") { ftxtxc.set("TCOBV4", iOBV4) }
+
+		// Fetch the information form the table and output it
+		if(actionftxtxc.read(ftxtxc)) {
+			mi.outData.put("CONO", ftxtxc.getInt("TCCONO").toString())
+			mi.outData.put("DIVI", ftxtxc.getString("TCDIVI"))
+			mi.outData.put("TYPE", ftxtxc.getInt("TCTYPE").toString())
+			mi.outData.put("PRIO", ftxtxc.getInt("TCPRIO").toString())
+			mi.outData.put("OBV1", ftxtxc.getString("TCOBV1"))
+			mi.outData.put("OBV2", ftxtxc.getString("TCOBV2"))
+			mi.outData.put("OBV3", ftxtxc.getString("TCOBV3"))
+			mi.outData.put("OBV4", ftxtxc.getString("TCOBV4"))
+			mi.outData.put("FRDT", ftxtxc.getInt("TCFRDT").toString())
+			mi.outData.put("TODT", ftxtxc.getInt("TCTODT").toString())
+			mi.outData.put("RTXC", ftxtxc.getString("TCRTXC"))
+			mi.outData.put("TXID", ftxtxc.get("TCTXID").toString())
+			mi.write()
+		} else {
+			mi.error("Record does not exist")
+			return
+		}
+	}
+}

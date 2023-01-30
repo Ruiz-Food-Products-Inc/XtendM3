@@ -1,0 +1,106 @@
+/*
+ * README
+ * This extension is being used to get Sales Tax Exemption list
+ * 
+ * Name: EXT050MI.LstSalesTaxExmp
+ * Description: Get Sales Tax Exemption
+ * 
+ * Date	      Changed By              Description
+ * 20221015	  Girish Hosamani    Get Sales Tax Exemption List
+ *
+ */
+ 
+public class LstSalesTaxExmp extends ExtendM3Transaction {
+	private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+	
+	//Primary key fields
+	private int iCONO, iTYPE, iPRIO
+	private String iDIVI
+	
+	//Alphas and numeric fields
+	private int iFRDT, iTODT
+	private String iOBV1, iOBV2, iOBV3, iOBV4
+
+  public LstSalesTaxExmp(MIAPI mi, DatabaseAPI database,  ProgramAPI program) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  
+  /*
+   * Main method
+   * @param
+   * @return
+  */
+   
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+    iDIVI = mi.inData.get("DIVI") == null || mi.inData.get("DIVI").trim() == "?" ? "" : mi.inData.get("DIVI").trim()
+		iTYPE = mi.inData.get("TYPE") == null || mi.inData.get("TYPE").trim() in ["", "?"] ? 0 : mi.inData.get("TYPE").trim().toInteger()
+    iPRIO = mi.inData.get("PRIO") == null || mi.inData.get("PRIO").trim() in ["", "?"] ? 0 : mi.inData.get("PRIO").trim().toInteger()
+    iFRDT = mi.inData.get("FRDT") == null || mi.inData.get("FRDT").trim() in ["", "?"] ? 0 : mi.inData.get("FRDT").trim().toInteger()
+    iTODT = mi.inData.get("TODT") == null || mi.inData.get("TODT").trim() in ["", "?"] ? 0 : mi.inData.get("TODT").trim().toInteger()
+    iOBV1 = mi.inData.get("OBV1") == null || mi.inData.get("OBV1").trim() == "?" ? "" : mi.inData.get("OBV1").trim()
+    iOBV2 = mi.inData.get("OBV2") == null || mi.inData.get("OBV2").trim() == "?" ? "" : mi.inData.get("OBV2").trim()
+    iOBV3 = mi.inData.get("OBV3") == null || mi.inData.get("OBV3").trim() == "?" ? "" : mi.inData.get("OBV3").trim()
+    iOBV4 = mi.inData.get("OBV4") == null || mi.inData.get("OBV4").trim() == "?" ? "" : mi.inData.get("OBV4").trim()
+		
+		if (iFRDT == 0) {
+      iFRDT = -99999999
+    } 
+    
+    if (iTODT == 0) {
+      iTODT = 99999999
+    }
+		
+		getRecord()
+  }
+	 
+  /*
+	 * Get records from FTXTXC table
+	 * 
+	 * return Data as MI output 
+	 *
+	 */
+  private void getRecord(){
+    ExpressionFactory expression = database.getExpressionFactory("FTXTXC")
+    expression = expression.eq("TCFRDT", iFRDT.toString()).and(expression.eq("TCTODT", iTODT.toString()))
+    
+    if(iOBV2.trim() != "") { expression = expression.and(expression.eq("TCOBV2", iOBV2)) }
+    if(iOBV3.trim() != "") { expression = expression.and(expression.eq("TCOBV3", iOBV3)) }
+    if(iOBV4.trim() != "") { expression = expression.and(expression.eq("TCOBV4", iOBV4)) }
+    
+		DBAction dbActionftxtxc = database.table("FTXTXC").index("00").matching(expression).selectAllFields().build()
+		DBContainer ftxtxc = dbActionftxtxc.getContainer()
+
+		ftxtxc.set("TCCONO", iCONO)
+		ftxtxc.set("TCDIVI", iDIVI)
+		if(iTYPE != 0) { ftxtxc.set("TCTYPE", iTYPE) }
+		if(iPRIO != 0) { ftxtxc.set("TCPRIO", iPRIO) }
+		if(iOBV1.trim() != "") { ftxtxc.set("TCOBV1", iOBV1) } 
+	
+		Closure<?> readAllRecordMITLOC = {
+      DBContainer resultContainer ->
+			mi.outData.put("CONO", resultContainer.getInt("TCCONO").toString())
+			mi.outData.put("DIVI", resultContainer.getString("TCDIVI"))
+			mi.outData.put("TYPE", resultContainer.getInt("TCTYPE").toString())
+			mi.outData.put("PRIO", resultContainer.getInt("TCPRIO").toString())
+			mi.outData.put("OBV1", resultContainer.getString("TCOBV1"))
+			mi.outData.put("OBV2", resultContainer.getString("TCOBV2"))
+			mi.outData.put("OBV3", resultContainer.getString("TCOBV3"))
+			mi.outData.put("OBV4", resultContainer.getString("TCOBV4"))
+			mi.outData.put("FRDT", resultContainer.getInt("TCFRDT").toString())
+			mi.outData.put("TODT", resultContainer.getInt("TCTODT").toString())
+			mi.outData.put("RTXC", resultContainer.getString("TCRTXC"))
+			mi.outData.put("TXID", resultContainer.get("TCTXID").toString())
+			mi.write()
+    }
+    
+    if (!dbActionftxtxc.readAll(ftxtxc, 5, readAllRecordMITLOC)) {
+      mi.error("Record does not exist")
+	  return
+    }
+	}
+}

@@ -1,0 +1,150 @@
+/*
+ * README
+ * This extension is being used to update Sales Tax Exemption from FTXTXC
+ * 
+ * Name: EXT050MI.UpdSalesTaxExmp
+ * Description: update Sales Tax Exemption
+ * 
+ * Date	      Changed By      Description
+ * 20221109	  Girish Hosamani    update Sales Tax Exemption
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdSalesTaxExmp extends ExtendM3Transaction {
+  private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+  
+  //Input fields
+	private int iCONO, iTYPE, iPRIO, iFRDT, iTODT, iTXID
+	private String iDIVI, iOBV1, iOBV2, iOBV3, iOBV4, iRTXC
+  
+  public UpdSalesTaxExmp(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  
+  /*
+   * Main method
+   * @param
+   * @return
+  */
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+    iTYPE = mi.inData.get("TYPE") == null || mi.inData.get("TYPE").trim() in ["", "?"] ? 0 : mi.inData.get("TYPE").trim().toInteger()
+    iPRIO = mi.inData.get("PRIO") == null || mi.inData.get("PRIO").trim() in ["", "?"] ? 0 : mi.inData.get("PRIO").trim().toInteger()
+    iFRDT = mi.inData.get("FRDT") == null || mi.inData.get("FRDT").trim() in ["", "?"] ? 0 : mi.inData.get("FRDT").trim().toInteger()
+    iTODT = mi.inData.get("TODT") == null || mi.inData.get("TODT").trim() in ["", "?"] ? 0 : mi.inData.get("TODT").trim().toInteger()
+    iTXID = mi.inData.get("TXID") == null || mi.inData.get("TXID").trim() in ["", "?"] ? 0 : mi.inData.get("TXID").trim().toInteger()
+    iDIVI = mi.inData.get("DIVI") == null || mi.inData.get("DIVI").trim() == "?" ? "" : mi.inData.get("DIVI").trim()
+    iOBV1 = mi.inData.get("OBV1") == null || mi.inData.get("OBV1").trim() == "?" ? "" : mi.inData.get("OBV1").trim()
+    iOBV2 = mi.inData.get("OBV2") == null || mi.inData.get("OBV2").trim() == "?" ? "" : mi.inData.get("OBV2").trim()
+    iOBV3 = mi.inData.get("OBV3") == null || mi.inData.get("OBV3").trim() == "?" ? "" : mi.inData.get("OBV3").trim()
+    iOBV4 = mi.inData.get("OBV4") == null || mi.inData.get("OBV4").trim() == "?" ? "" : mi.inData.get("OBV4").trim()
+    iRTXC = mi.inData.get("RTXC") == null || mi.inData.get("RTXC").trim() == "?" ? "" : mi.inData.get("RTXC").trim()
+    
+    if (iFRDT == 0) {
+      iFRDT = -99999999
+    } 
+    
+    if (iTODT == 0) {
+      iTODT = 99999999
+    }
+    boolean InputsValid = validateInputData(iCONO, iDIVI, iOBV1, iOBV2, iPRIO, iTYPE)
+    if(InputsValid){
+		  updateRecord()
+		}
+  }
+  
+  /*
+	 * Validating the MI input OBV1 - Item number
+	 * @param cono - Company number
+   * @param divi - Division
+   * @param type - Tranaction type
+   * @param prio - Priority
+   * @param obv1 - Item number
+   * @param obv2 - State code
+   * 
+	 */
+	private validateInputData(int cono, String divi, String obv1, String obv2, int prio, int type){
+	  // Validate Division
+	  DBAction actioncmndiv = database.table("CMNDIV").index("00").selectAllFields().build()
+    DBContainer cmndiv = actioncmndiv.getContainer()
+	  cmndiv.set("CCCONO",cono)
+	  cmndiv.set("CCDIVI",divi)
+	  if(!actioncmndiv.read(cmndiv)){
+	    mi.error("Division " + divi + " is invalid")
+      return false
+	  } 
+	    
+	  // Validate Item Number and State
+	  if (prio == 1 && type == 2) {
+	    // Validate Item Number
+	    DBAction actionmitmas = database.table("MITMAS").index("00").selectAllFields().build()
+      DBContainer MITMAS = actionmitmas.getContainer()
+      MITMAS.set("MMCONO", cono)
+      MITMAS.set("MMITNO", obv1.trim())
+      if (!actionmitmas.read(MITMAS)) {
+      mi.error("Item number "+obv1+ " does not exist")
+      return false
+      }
+      
+      DBAction actioncsysts = database.table("CSYSTS").index("00").selectAllFields().build()
+      DBContainer csysts = actioncsysts.getContainer()
+	    csysts.set("CKCONO",cono)
+	    csysts.set("CKECAR",obv2)
+	    csysts.set("CKCSCD","US")
+	    if(!actioncsysts.read(csysts)){
+	      mi.error("State " + obv2 + " is invalid")
+        return false
+	    }
+	  }
+	  
+	  return true
+	}
+  
+  /*
+	 * Update record in the FTXTXC table
+	 *
+	 */
+	private void updateRecord(){
+		DBAction dbActionftxtxc = database.table("FTXTXC").index("00").selection().build()
+		DBContainer FTXTXC = dbActionftxtxc.getContainer()
+
+		FTXTXC.set("TCCONO", iCONO)
+		FTXTXC.set("TCDIVI", iDIVI)
+    FTXTXC.set("TCTYPE", iTYPE)
+    FTXTXC.set("TCPRIO", iPRIO)
+		FTXTXC.set("TCFRDT", iFRDT)
+    FTXTXC.set("TCTODT", iTODT)
+    if(iOBV1.trim() != "") { FTXTXC.set("TCOBV1", iOBV1) } 
+		if(iOBV2.trim() != "") { FTXTXC.set("TCOBV2", iOBV2) }
+		if(iOBV3.trim() != "") { FTXTXC.set("TCOBV3", iOBV3) } 
+		if(iOBV4.trim() != "") { FTXTXC.set("TCOBV4", iOBV4) }
+    	
+		if (!dbActionftxtxc.readLock(FTXTXC, updateCallBack)) {
+		  mi.error("Record does not exist")
+		}
+	}
+	
+	/*
+	 * Closure for FTXTXC Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+
+		if(iRTXC.trim() != "") {lockedResult.set("TCRTXC", iRTXC) }
+		if(iTXID != 0) {lockedResult.set("TCTXID", iTXID) }
+		
+		// Update changed information
+		lockedResult.set("TCLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.set("TCCHNO", (lockedResult.getInt("TCCHNO") + 1))
+		lockedResult.set("TCCHID", program.getUser())
+		lockedResult.update()
+  }
+}
