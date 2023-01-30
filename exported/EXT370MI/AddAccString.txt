@@ -1,0 +1,285 @@
+/**
+ * README
+ * This extension is being used to Add records to CACCST table for adding accounting string
+ *
+ * Name: EXT370MI.AddAccString
+ * Description: Adding accounting String to CACCST table
+ * Date	      Changed By            Description
+ * 20230104	  Pranoti Khatavkar     Adding records to CACCST table
+ */
+ 
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+ 
+
+public class AddAccString extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+	
+	private int iCONO,iPNLI,iPUNO
+	private String iITNO,iAIT1,iAIT2,iAIT3,iAIT4,iAIT5,iAIT6,iAIT7,out_PUNO,iTYPE,inPUNO
+	private boolean isValid_AIT1,isValid_AIT3,isValid_AIT5
+	
+  public AddAccString(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+  public void main() {
+    logger.debug("in main")
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+		iPUNO = mi.inData.get("PUNO") == null ? 0 : mi.inData.get("PUNO") as Integer
+		iPNLI = mi.inData.get("PNLI") == null ? 0 : mi.inData.get("PNLI") as Integer
+    iAIT1 = mi.inData.get("AIT1") == null ? "" : mi.inData.get("AIT1")
+    iAIT2 = mi.inData.get("AIT2") == null ? "" : mi.inData.get("AIT2")
+    iAIT3 = mi.inData.get("AIT3") == null ? "" : mi.inData.get("AIT3")
+    iAIT4 = mi.inData.get("AIT4") == null ? "" : mi.inData.get("AIT4")
+    iAIT5 = mi.inData.get("AIT5") == null ? "" : mi.inData.get("AIT5")
+    iAIT6 = mi.inData.get("AIT6") == null ? "" : mi.inData.get("AIT6")
+    iAIT7 = mi.inData.get("AIT7") == null ? "" : mi.inData.get("AIT7")
+    iITNO = mi.inData.get("ITNO") == null ? "" : mi.inData.get("ITNO")
+    iTYPE = mi.inData.get("TYPE") == null ? "" : mi.inData.get("TYPE")
+    
+    inPUNO = (String)iPUNO.toString()
+    if(inPUNO.length()==5){
+      logger.debug("Length is :"+inPUNO.length())
+      out_PUNO = '00'+(String)iPUNO.toString()
+    }else{
+      logger.debug("Length is :"+inPUNO.length())
+      out_PUNO = (String)iPUNO.toString()
+    }
+
+    
+    // Validation Checks
+    if (!validItem(iCONO, iITNO)) {
+      mi.error("Item number does not exist")
+      return
+    }
+    
+    if(!validMPOPLPData(iPUNO,iPNLI)){
+       mi.error("Invalid Item number")
+      return
+    }
+    
+    if(iTYPE.toString().trim().equals('IndirectProcurementOnly')){
+        validateAccountingDimension()
+        logger.debug("isValid_AIT1:"+isValid_AIT1+",isValid_AIT3:"+isValid_AIT3+",isValid_AIT5:"+isValid_AIT5)
+        
+        //Add or update record to CACCST
+        if(isValid_AIT1 && isValid_AIT3 && isValid_AIT5){
+           addRecord()
+        }
+   }else{
+     mi.error("Invalid Type")
+     return
+   }
+  
+  }
+  
+  /*
+  *  Validate item number
+ */
+  private boolean validItem(int inCONO, String inITNO){
+    DBAction dbAction = database.table("MITMAS").index("00").selection().build()
+    DBContainer MITMAS = dbAction.getContainer()
+    
+    MITMAS.set("MMCONO", inCONO)
+    MITMAS.set("MMITNO", inITNO)
+    if (!dbAction.read(MITMAS)) {
+      return false
+    }
+    return true
+  }
+  
+  /*
+  *Validate record from MPOPLP table to check if corresponding item is correct or not
+  */
+  private boolean validMPOPLPData(int inPUNO,int inPNLI){
+    DBAction dbAction = database.table("MPOPLP").index("00").selectAllFields().build()
+    DBContainer MPOPLP = dbAction.getContainer()
+    
+    MPOPLP.set("POCONO",iCONO)
+    MPOPLP.set("POPLPN",inPUNO)
+    MPOPLP.set("POPLPS",inPNLI)
+    MPOPLP.set("POPLP2",0)
+    
+     if (dbAction.read(MPOPLP)) {
+      String ItemNumber  = MPOPLP.get("POITNO")
+     
+      if(ItemNumber.equals(iITNO)){
+        return true
+      }else{
+      return false
+    }
+   }
+  } 
+  
+  /*
+  *Validate accounting dimenstion 1 ,3 and 5 to ensure correct data insertion in CACCST
+  */
+  private void validateAccountingDimension(){
+    logger.debug("In validateAccountingDimension")
+    
+    //For AIT1 Accounting dimension 1
+    if(iAIT1.toString().trim()!=''){
+    DBAction dbFCHACC_AIT1 = database.table("FCHACC").index("00").selection().build()
+    DBContainer FCHACC_AIT1 = dbFCHACC_AIT1.getContainer()
+    
+    FCHACC_AIT1.set("EACONO", iCONO)
+    FCHACC_AIT1.set("EADIVI", "")
+    FCHACC_AIT1.set("EAAITP", 1)
+    FCHACC_AIT1.set("EAAITM", iAIT1.toString().trim())
+    
+    if(dbFCHACC_AIT1.read(FCHACC_AIT1)){
+      int inAITP = FCHACC_AIT1.get("EAAITP")
+      String inAITM = FCHACC_AIT1.getString("EAAITM")  
+      logger.debug("AIT1:"+inAITP+","+inAITM) 
+      isValid_AIT1 = true
+    }else{
+       isValid_AIT1 = false
+       mi.error("Record does not exist in FCHACC,Check dimension 1")
+       return
+    }
+  }
+    
+    //For AIT3 Accounting dimension 3
+     if(iAIT3.toString().trim()!=''){
+    DBAction dbFCHACC_AIT3 = database.table("FCHACC").index("00").selection().build()
+    DBContainer FCHACC_AIT3 = dbFCHACC_AIT3.getContainer()
+    
+    FCHACC_AIT3.set("EACONO", iCONO)
+    FCHACC_AIT3.set("EADIVI", "")
+    FCHACC_AIT3.set("EAAITP", 3)
+    FCHACC_AIT3.set("EAAITM", iAIT3.toString().trim())
+    
+    
+    if(dbFCHACC_AIT3.read(FCHACC_AIT3)){
+       int inAITP = FCHACC_AIT3.get("EAAITP")
+       String inAITM = FCHACC_AIT3.getString("EAAITM")  
+       logger.debug("AIT3:"+inAITP+","+inAITM)
+      isValid_AIT3 = true
+    }else{
+       isValid_AIT3 = false
+       mi.error("Record does not exist in FCHACC,check dimension 3")
+       return
+    }
+  }
+    
+   //For AIT5 Accounting dimension 5
+    if(iAIT5.toString().trim()!=''){
+    DBAction dbFCHACC_AIT5 = database.table("FCHACC").index("00").selection().build()
+    DBContainer FCHACC_AIT5 = dbFCHACC_AIT5.getContainer()
+    
+    FCHACC_AIT5.set("EACONO", iCONO)
+    FCHACC_AIT5.set("EADIVI", "")
+    FCHACC_AIT5.set("EAAITP", 5)
+    FCHACC_AIT5.set("EAAITM", iAIT5.toString().trim())
+    
+    if(dbFCHACC_AIT5.read(FCHACC_AIT5)){
+       int inAITP = FCHACC_AIT5.get("EAAITP")
+       String inAITM = FCHACC_AIT5.getString("EAAITM")  
+       logger.debug("AIT5:"+inAITP+","+inAITM)
+       isValid_AIT5 = true
+    }else{
+       isValid_AIT5 = false
+       mi.error("Record does not exist in FCHACC,check dimension 5")
+       return
+    }
+  }
+   
+  }
+  
+  /*
+  * Add record in CACCST
+  */
+  private void addRecord(){
+    logger.debug("In addRecord")
+    
+    DBAction dbAction = database.table("CACCST").index("00").selectAllFields().build()
+		DBContainer CACCST = dbAction.getContainer()
+   
+		CACCST.set("SCCONO", iCONO)
+		CACCST.set("SCRIDN", out_PUNO)
+    CACCST.set("SCRIDL", iPNLI)
+    CACCST.set("SCRIDX", 0)
+    CACCST.set("SCORCA", '250')
+    CACCST.set("SCEVEN", 'PP05') 
+    CACCST.set("SCACTY", '903')
+    CACCST.set("SCAIT1", iAIT1) 
+		CACCST.set("SCAIT2", iAIT2)
+		CACCST.set("SCAIT3", iAIT3) 
+		CACCST.set("SCAIT4", iAIT4) 
+		CACCST.set("SCAIT5", iAIT5) 
+		CACCST.set("SCAIT6", iAIT6) 
+		CACCST.set("SCAIT7", iAIT7) 
+		
+		CACCST.set("SCRGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		CACCST.set("SCRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		CACCST.set("SCLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		CACCST.set("SCCHNO", 1)
+		CACCST.set("SCCHID", program.getUser())
+		
+		logger.debug("AIT1:"+iAIT1+","+iAIT3+","+iAIT5+","+iAIT7+","+ LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		
+		if(dbAction.read(CACCST)){
+    		updateRecord()
+  	  }else{
+  	    dbAction.insert(CACCST,recordExists)
+  	  }
+  }
+  
+  	Closure recordExists = {
+     
+	}
+	
+	/*
+	* Update the record in CACCST if already available
+	*/
+	private void updateRecord(){
+	  logger.debug("In updateRecord")
+	  
+	  DBAction dbAction = database.table("CACCST").index("00").selectAllFields().build()
+		DBContainer CACCST = dbAction.getContainer()
+
+	  CACCST.set("SCCONO", iCONO)
+		CACCST.set("SCRIDN", out_PUNO)
+    CACCST.set("SCRIDL", iPNLI)
+    CACCST.set("SCRIDX", 0)
+    CACCST.set("SCORCA", '250')
+    CACCST.set("SCEVEN", 'PP05') 
+    CACCST.set("SCACTY", '903')
+		
+		dbAction.readLock(CACCST, updateCallBack)
+	}
+	
+	/**
+	 * Closure for CACCST Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+   logger.debug("Update the record")
+		
+		if(iAIT1.trim() != "") {lockedResult.set("SCAIT1", iAIT1)}
+		if(iAIT2.trim() != "") {lockedResult.set("SCAIT2", iAIT2)}
+		if(iAIT3.trim() != "") {lockedResult.set("SCAIT3", iAIT3)}
+		if(iAIT4.trim() != "") {lockedResult.set("SCAIT4", iAIT4)}
+		if(iAIT5.trim() != "") {lockedResult.set("SCAIT5", iAIT5)}
+		if(iAIT6.trim() != "") {lockedResult.set("SCAIT6", iAIT6)}
+		if(iAIT7.trim() != "") {lockedResult.set("SCAIT7", iAIT7)}
+		logger.debug("AIT1:"+iAIT1+","+iAIT3+","+iAIT5+","+iAIT7)
+		
+		// Update changed information
+		lockedResult.set("SCLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.setInt("SCCHNO", (lockedResult.getInt("SCCHNO") + 1))
+		lockedResult.set("SCCHID", program.getUser())
+		lockedResult.update()
+  
+  }
+	
+}
