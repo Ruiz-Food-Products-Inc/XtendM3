@@ -1,0 +1,166 @@
+/*
+ * README
+ * This extension is being used to Add records to EXTDSH table for delivery related custom information. 
+ *
+ * Name: EXT100MI.AddDelyCstmInfo
+ * Description: Adding records to EXTDSH table
+ * Date	      Created By                    Description
+ * 20221018	  Pranoti Khatavkar             Adding records to EXTDSH table
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+
+public class AddDelyCstmInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+   private final MICallerAPI miCaller
+	
+	
+	//Input fields
+	private int iCONO,iINOU,iDLIX, iCONN,iMULS,iRORC
+  private String iRIDN,iSEAL,iTRLN,inMULS,inCONN
+  
+  
+  public AddDelyCstmInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program, MICallerAPI miCaller) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program  
+		this.miCaller = miCaller
+  }
+  
+  
+   	/**
+	 * main method
+	 *
+	 */
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+    iINOU = mi.inData.get("INOU") == null ? 0 : mi.inData.get("INOU") as Integer
+    iDLIX = mi.inData.get("DLIX") == null ? 0 : mi.inData.get("DLIX") as Integer
+    iCONN = mi.inData.get("CONN") == null || mi.inData.get("CONN").trim() in ["", "?"] ? 0 : mi.inData.get("CONN").trim().toInteger()
+		iRIDN = mi.inData.get("RIDN") == null ? "" : mi.inData.get("RIDN")
+    iMULS = mi.inData.get("MULS") == null || mi.inData.get("MULS").trim() in ["", "?"] ? 0 : mi.inData.get("MULS").trim().toInteger()
+    iSEAL = mi.inData.get("SEAL") == null ? "" : mi.inData.get("SEAL")
+    iTRLN = mi.inData.get("TRLN") == null ? "" : mi.inData.get("TRLN")
+    
+    logger.debug("Input MULS is:"+iMULS)
+    
+    //Validates the input parameters
+		if(!validateDeliveryNo(iCONO, iINOU,iDLIX)){
+		  mi.error("Delivery number does not exist")
+		  return
+		}
+		
+		if(iCONN!=0){
+		  validShipmentNo(iCONO,iCONN)
+		}
+		if(!validOrderNumber(iCONO,iRIDN,iINOU,iDLIX)){
+		  mi.error("Order number does not exist")
+		  return
+		}
+			insertRecordInEXTDSH()
+  }
+  
+    //Validate the input parameter 
+  private boolean validateDeliveryNo(int inCONO, int inINOU,int inDLIX){
+    logger.debug("Validate input Delivery number")
+    DBAction dbAction = database.table("MHDISH").index("00").selection("OQCONO","OQINOU", "OQDLIX").build()
+    DBContainer MHDISH = dbAction.getContainer()
+    
+    MHDISH.set("OQCONO", inCONO)
+    MHDISH.set("OQINOU", inINOU)
+    MHDISH.set("OQDLIX", inDLIX)
+    
+    if (!dbAction.read(MHDISH)) {
+     logger.debug("Record not found")
+     return false
+    }
+     logger.debug("Record found")
+     return true
+  }
+  
+  /**
+   * Validate the input Shipment number
+   */
+    private boolean  validShipmentNo (int cono, int conn){
+  	logger.debug("In validShipmentNo")
+  	Map<String,String> params = ["CONN" : conn.toString().trim()];
+
+		Closure<?> handler = { Map<String, String> response ->
+			if(response.error){
+				mi.error("Shipment number "+conn+" does not exist")
+				return 
+			}else{
+				return true; // This means no error
+			}
+		};
+		miCaller.call("DRS100MI","GetShipment", params, handler)
+	}
+   
+  
+  
+  /**
+   * Validate the input parameter RIDN according to related ref order category RORC
+   */
+   private boolean validOrderNumber(int inCONO, String inRIDN,int inINOU,int inDLIX){
+    logger.debug("In validate order number")
+    ExpressionFactory expression = database.getExpressionFactory("MHDISH")
+    if(iRIDN.trim() != "") { 
+      expression = expression.eq("OQRIDN", iRIDN)
+    }
+    
+    DBAction dbAction = database.table("MHDISH").index("00").matching(expression).selectAllFields().build()
+    DBContainer MHDISH = dbAction.getContainer()
+    
+    MHDISH.set("OQCONO", inCONO)
+    MHDISH.set("OQINOU", inINOU)
+    MHDISH.set("OQDLIX", inDLIX)
+
+     if (dbAction.read(MHDISH)) {
+     logger.debug("Record found"+iRIDN)
+     return true
+    }else{
+      return false
+    } 
+   }   
+   
+  	/**
+	 * Inserts record in the EXTDSH table
+	 *
+	 */
+	private void insertRecordInEXTDSH(){
+		DBAction dbAction = database.table("EXTDSH").index("00").selection("EXCONO","EXINOU","EXDLIX").build()
+		DBContainer EXTDSH = dbAction.getContainer()
+
+		EXTDSH.set("EXCONO", iCONO)
+		EXTDSH.set("EXINOU", iINOU)
+		EXTDSH.set("EXDLIX", iDLIX)		
+	  EXTDSH.set("EXCONN", iCONN)
+    EXTDSH.set("EXRIDN", iRIDN)
+    EXTDSH.set("EXMULS", iMULS)
+    EXTDSH.set("EXSEAL", iSEAL)
+    EXTDSH.set("EXTRLN", iTRLN)
+		
+		EXTDSH.set("EXRGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTDSH.set("EXRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		EXTDSH.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		EXTDSH.set("EXCHNO", 1)
+		EXTDSH.set("EXCHID", program.getUser())
+		
+		dbAction.insert(EXTDSH,recordExists)
+
+	}	
+	
+	Closure recordExists = {
+		mi.error("Record Already Exists in EXTDSH table")
+	}
+  
+}
