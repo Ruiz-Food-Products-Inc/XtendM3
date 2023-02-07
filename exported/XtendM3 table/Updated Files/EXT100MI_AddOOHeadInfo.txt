@@ -1,0 +1,145 @@
+/*
+ * README
+ * This extension is being used to Add records to EXTOOH table for EDI turnaround purpose. 
+ *
+ * Name: EXT100MI.AddOOHeadInfo
+ * Description: Adding records to EXTOOH table
+ * 
+ * Date	      Changed By            Description
+ * 20220924	  Girish Hosamani      Adding records to EXTOOH table
+ * 20221125   Pranoti Khatavkar    Added A121(DESC) string field in EXTOOH table  
+ * 20221226   Pranoti Khatavkar    Added A830(TRST) string field in EXTOOH table
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class AddOOHeadInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+  
+	private int iCONO
+  private String iORNO, iCFBK, iRCOR, iTO3P, iSTAT, iEDPW, iACKS, iACKW, iACKA, iORST, iWHLO, iDESC, iTRST
+  
+	//Indication of the error flag
+	private boolean isValidInput
+  
+  
+  public AddOOHeadInfo(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+		iORNO = mi.inData.get("ORNO") == null || mi.inData.get("ORNO").trim() == "?" ? "" : mi.inData.get("ORNO").trim()
+		iCFBK = mi.inData.get("CFBK") == null || mi.inData.get("CFBK").trim() == "?" ? "" : mi.inData.get("CFBK").trim()
+		iRCOR = mi.inData.get("RCOR") == null || mi.inData.get("RCOR").trim() == "?" ? "" : mi.inData.get("RCOR").trim()
+		iTO3P = mi.inData.get("TO3P") == null || mi.inData.get("TO3P").trim() == "?" ? "" : mi.inData.get("TO3P").trim()
+		iSTAT = mi.inData.get("STAT") == null || mi.inData.get("STAT").trim() == "?" ? "" : mi.inData.get("STAT").trim()		
+		iEDPW = mi.inData.get("EDPW") == null || mi.inData.get("EDPW").trim() == "?" ? "" : mi.inData.get("EDPW").trim()
+		iACKS = mi.inData.get("ACKS") == null || mi.inData.get("ACKS").trim() == "?" ? "" : mi.inData.get("ACKS").trim()
+		iACKW = mi.inData.get("ACKW") == null || mi.inData.get("ACKW").trim() == "?" ? "" : mi.inData.get("ACKW").trim()
+		iACKA = mi.inData.get("ACKA") == null || mi.inData.get("ACKA").trim() == "?" ? "" : mi.inData.get("ACKA").trim()		
+		iORST = mi.inData.get("ORST") == null || mi.inData.get("ORST").trim() == "?" ? "" : mi.inData.get("ORST").trim()
+		iDESC = mi.inData.get("DESC") == null || mi.inData.get("DESC").trim() == "?" ? "" : mi.inData.get("DESC").trim()
+		iWHLO = mi.inData.get("WHLO") == null || mi.inData.get("WHLO").trim() == "?" ? "" : mi.inData.get("WHLO").trim()
+		iTRST = mi.inData.get("TRST") == null || mi.inData.get("TRST").trim() == "?" ? "" : mi.inData.get("TRST").trim()
+		
+		//Validates the input parameters
+		validateOrno(iCONO, iORNO)
+		if (iWHLO.trim() != "") {
+		  validateWhlo(iCONO, iWHLO)
+		}
+
+		//Flag is set to False if an error exists in the input fields
+		if(isValidInput){
+			insertRecord()
+		}    
+  }
+  
+	/*
+	 * Validating the MI input ORNO
+	 * @param cono - Company number	  
+	 * @param orno - Order number
+	 *
+	 */
+	private validateOrno(int cono, String orno){
+	  
+		DBAction actionoohead = database.table("OOHEAD").index("00").selectAllFields().build()
+    DBContainer oohead = actionoohead.getContainer()
+
+    oohead.set("OACONO", cono)
+    oohead.set("OAORNO", orno)
+
+    // Fetch the information form the table and output it
+    if (actionoohead.read(oohead)) {
+        isValidInput = true // This means no error
+    } else {
+       isValidInput = false
+       mi.error("Order does not exist")
+       return
+    }
+	}	
+	
+	/*
+	 * Validating the MI input WHLO	 
+	 * @param cono - Company number	  
+	 * @param whlo - Warehouse
+	 *
+	 */
+	private validateWhlo(int cono, String whlo){
+	    
+		DBAction actionmitwhl = database.table("MITWHL").index("00").selectAllFields().build()
+    DBContainer mitwhl = actionmitwhl.getContainer()
+
+    mitwhl.set("MWCONO", cono)
+    mitwhl.set("MWWHLO", whlo)
+
+    if (!actionmitwhl.read(mitwhl)) {  
+	      isValidInput = false
+        mi.error("Warehouse does not exist")
+        return
+    }
+	}
+		
+	/*
+	 * Inserts record in the EXTOOH table
+	 *
+	 */
+	private void insertRecord(){
+		DBAction actionextooh = database.table("EXTOOH").index("00").selection("EXCONO","EXORNO").build()
+		DBContainer extooh = actionextooh.getContainer()
+
+		extooh.set("EXCONO", iCONO)
+		extooh.set("EXORNO", iORNO)
+		extooh.set("EXCFBK", iCFBK)
+		extooh.set("EXRCOR", iRCOR)
+		extooh.set("EXTO3P", iTO3P)
+		extooh.set("EXSTAT", iSTAT)
+		extooh.set("EXEDPW", iEDPW)
+		extooh.set("EXACKS", iACKS)
+		extooh.set("EXACKW", iACKW)
+		extooh.set("EXACKA", iACKA)
+		extooh.set("EXORST", iORST)
+		extooh.set("EXWHLO", iWHLO)
+		extooh.set("EXDESC", iDESC)
+		extooh.set("EXTRST", iTRST)
+		
+		extooh.set("EXRGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		extooh.set("EXRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		extooh.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		extooh.set("EXCHNO", 1)
+		extooh.set("EXCHID", program.getUser())
+		
+		actionextooh.insert(extooh,recordExists)
+	}	
+	
+	Closure recordExists = {
+		mi.error("Record Already Exists")
+	}	
+}

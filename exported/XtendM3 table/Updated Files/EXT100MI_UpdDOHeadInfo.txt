@@ -1,0 +1,118 @@
+/*
+ * README
+ * This extension is being used to update EDI Order turnaround details in EXTOOH.
+ * 
+ * Name: EXT100MI.UpdDOHeadInfo
+ * Description: To update a record in the EXTOOH table
+ * 
+ * Date	      Changed By            Description
+ * 20220924	  Girish Hosamani      To update data in the table EXTMGH table
+ * 20221226   pranoti Khatavkar    To update data in the table EXTMGH table
+ * 20230125   Chetan Sharma        Adding new field NOUN in EXTMGH table
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdDOHeadInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final ProgramAPI program
+	
+	private int iCONO
+	private String iTRNR, iSTAT, iS945, iACKC, iACKD, iACK3, iACKW, iWHLO, iMESG, iNOUN
+	private boolean isValidInput
+  
+  public UpdDOHeadInfo(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.program = program
+  }
+  
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+		iTRNR = mi.inData.get("TRNR") == null || mi.inData.get("TRNR").trim() == "?" ? "" : mi.inData.get("TRNR").trim()
+		iSTAT = mi.inData.get("STAT") == null || mi.inData.get("STAT").trim() == "?" ? "" : mi.inData.get("STAT").trim()
+		iS945 = mi.inData.get("S945") == null || mi.inData.get("S945").trim() == "?" ? "" : mi.inData.get("S945").trim()
+		iACKC = mi.inData.get("ACKC") == null || mi.inData.get("ACKC").trim() == "?" ? "" : mi.inData.get("ACKC").trim()
+		iACKD = mi.inData.get("ACKD") == null || mi.inData.get("ACKD").trim() == "?" ? "" : mi.inData.get("ACKD").trim()		
+		iACKW = mi.inData.get("ACKW") == null || mi.inData.get("ACKW").trim() == "?" ? "" : mi.inData.get("ACKW").trim()
+		iACK3 = mi.inData.get("ACK3") == null || mi.inData.get("ACK3").trim() == "?" ? "" : mi.inData.get("ACK3").trim()
+		iWHLO = mi.inData.get("WHLO") == null || mi.inData.get("WHLO").trim() == "?" ? "" : mi.inData.get("WHLO").trim()
+		iMESG = mi.inData.get("MESG") == null || mi.inData.get("MESG").trim() == "?" ? "" : mi.inData.get("MESG").trim()
+		iNOUN = mi.inData.get("NOUN") == null || mi.inData.get("NOUN").trim() == "?" ? "" : mi.inData.get("NOUN").trim()
+				
+		if (iWHLO.trim() != "") {
+		  validateWhlo(iCONO, iWHLO)
+		} else {
+		  isValidInput = true
+		}
+		//If no error then update the record
+		if(isValidInput){
+			changeRecord()
+		}
+  }
+  
+	/*
+	 * Validating the MI input WHLO	 
+	 * @param cono - Company number	  
+	 * @param whlo - Warehouse
+	 *
+	 */
+	private validateWhlo(int cono, String whlo){
+	    
+		DBAction actionmitwhl = database.table("MITWHL").index("00").selectAllFields().build()
+    DBContainer mitwhl = actionmitwhl.getContainer()
+
+    mitwhl.set("MWCONO", cono)
+    mitwhl.set("MWWHLO", whlo)
+
+    if (!actionmitwhl.read(mitwhl)) { 
+      isValidInput = false
+      mi.error("Warehouse does not exist")
+      return
+    } else {
+      isValidInput = true
+    }
+	}
+  
+  /*
+	 * Update record in the EXTMGH table
+	 */
+	private void changeRecord(){
+		DBAction actionextmgh = database.table("EXTMGH").index("00").selection("EXCONO","EXTRNR").build()
+		DBContainer extmgh = actionextmgh.getContainer()
+
+		extmgh.set("EXCONO", iCONO)
+		extmgh.set("EXTRNR", iTRNR)
+		// Update changed information
+		if (!actionextmgh.readLock(extmgh, updateCallBack)) {
+			mi.error("Record does not exist")
+			return
+		}
+	}
+	
+	/*
+	 * Closure for EXTMGH Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+		if(iSTAT.trim() != "") {lockedResult.set("EXSTAT", iSTAT) }
+		if(iS945.trim() != "") {lockedResult.set("EXS945", iS945) }
+		if(iACKC.trim() != "") {lockedResult.set("EXACKC", iACKC) }
+		if(iACKD.trim() != "") {lockedResult.set("EXACKD", iACKD) }
+		if(iACK3.trim() != "") {lockedResult.set("EXACK3", iACK3) }
+		if(iACKW.trim() != "") {lockedResult.set("EXACKW", iACKW) }
+		if(iACKW.trim() != "") {lockedResult.set("EXACKW", iACKW) }
+		if(iWHLO.trim() != "") {lockedResult.set("EXWHLO", iWHLO) }
+		if(iMESG.trim() != "") {lockedResult.set("EXMESG", iMESG) }
+		if(iNOUN.trim() != "") {lockedResult.set("EXNOUN", iNOUN) }
+	
+		// Update changed information
+		lockedResult.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.set("EXCHID", program.getUser())
+		lockedResult.setInt("EXCHNO", (lockedResult.getInt("EXCHNO") + 1))
+		lockedResult.update()
+  }
+}

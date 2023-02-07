@@ -1,0 +1,66 @@
+/*
+ * README
+ * This extension is being used to get record from EXTMGH.
+ * 
+ * Name: EXT100MI.GetDOHeadInfo
+ * Description: To get record from EXTMGH table
+ * 
+ * Date	      Changed By            Description
+ * 20221028	  Girish Hosamani       To get a record in the EXTMGH table
+ * 20221223   Pranoti Khatavkar     To get new field MESG from EXTMGH table
+ * 20230125   Chetan Sharma        Adding new field NOUN in EXTMGH table
+ */
+
+public class GetDOHeadInfo extends ExtendM3Transaction {
+ 	private final MIAPI mi
+  private final DatabaseAPI database
+	private final ProgramAPI program
+  
+  //Input fields
+	private int iCONO
+	private String iTRNR
+	
+  public GetDOHeadInfo(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.program = program
+  }
+  
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+		iTRNR = mi.inData.get("TRNR") == null || mi.inData.get("TRNR").trim() == "?" ? "" : mi.inData.get("TRNR").trim()
+    
+    //Fetch the information
+		getRecord()
+  }
+  
+  /*
+	 * Get record from EXTOOH table
+	 */
+  private void getRecord(){
+    DBAction actionextmgh = database.table("EXTMGH").index("00").selectAllFields().build()
+		DBContainer extmgh = actionextmgh.getContainer()
+
+		extmgh.set("EXCONO", iCONO)
+		extmgh.set("EXTRNR", iTRNR)
+		
+		// Fetch the information form the table and output it
+    if(actionextmgh.read(extmgh)) {
+		 	mi.outData.put("CONO", extmgh.getInt("EXCONO").toString())
+		 	mi.outData.put("TRNR", extmgh.getString("EXTRNR"))
+		 	mi.outData.put("STAT", extmgh.getString("EXSTAT"))
+			mi.outData.put("S945", extmgh.getString("EXS945"))
+			mi.outData.put("ACKC", extmgh.getString("EXACKC"))
+			mi.outData.put("ACKD", extmgh.getString("EXACKD"))
+			mi.outData.put("ACKW", extmgh.getString("EXACKW"))
+			mi.outData.put("ACK3", extmgh.getString("EXACK3"))
+			mi.outData.put("WHLO", extmgh.getString("EXWHLO"))
+			mi.outData.put("MESG", extmgh.getString("EXMESG"))
+			mi.outData.put("NOUN", extmgh.getString("EXNOUN"))
+			
+			mi.write()
+		} else {
+			mi.error("Record does not exist")
+		}
+  }
+}

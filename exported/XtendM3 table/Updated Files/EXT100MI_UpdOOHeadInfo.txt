@@ -1,0 +1,128 @@
+/*
+ * README
+ * This extension is being used to update EDI Order turnaround details in EXTOOH.
+ *
+ * Name: EXT100MI.UpdOOHeadInfo
+ * Description: To update a record in the EXTOOH table
+ *
+ * Date	      Changed By            Description
+ * 20211002	  Girish Hosamani     To update a record in the EXTOOH table
+ * 20221125   pranoti Khatavkar    To update DESC in the table EXTOOH table
+   20221226   pranoti Khatavkar    To update TRST in the table EXTOOH table
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdOOHeadInfo extends ExtendM3Transaction {
+ 	private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+	
+	//Input fields
+	private int iCONO
+  private String iORNO, iCFBK, iRCOR, iTO3P, iSTAT, iEDPW, iACKS, iACKW, iACKA, iORST, iWHLO, iDESC, iTRST
+  private boolean isValidInput
+  
+  
+  public UpdOOHeadInfo(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+ 	  this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  
+  /*
+	 * Main method
+	 * @param
+	 * @return
+	 */
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+		iORNO = mi.inData.get("ORNO") == null || mi.inData.get("ORNO").trim() == "?" ? "" : mi.inData.get("ORNO").trim()
+		iCFBK = mi.inData.get("CFBK") == null || mi.inData.get("CFBK").trim() == "?" ? "" : mi.inData.get("CFBK").trim()
+		iRCOR = mi.inData.get("RCOR") == null || mi.inData.get("RCOR").trim() == "?" ? "" : mi.inData.get("RCOR").trim()
+		iTO3P = mi.inData.get("TO3P") == null || mi.inData.get("TO3P").trim() == "?" ? "" : mi.inData.get("TO3P").trim()
+		iSTAT = mi.inData.get("STAT") == null || mi.inData.get("STAT").trim() == "?" ? "" : mi.inData.get("STAT").trim()		
+		iEDPW = mi.inData.get("EDPW") == null || mi.inData.get("EDPW").trim() == "?" ? "" : mi.inData.get("EDPW").trim()
+		iACKS = mi.inData.get("ACKS") == null || mi.inData.get("ACKS").trim() == "?" ? "" : mi.inData.get("ACKS").trim()
+		iACKW = mi.inData.get("ACKW") == null || mi.inData.get("ACKW").trim() == "?" ? "" : mi.inData.get("ACKW").trim()
+		iACKA = mi.inData.get("ACKA") == null || mi.inData.get("ACKA").trim() == "?" ? "" : mi.inData.get("ACKA").trim()		
+		iORST = mi.inData.get("ORST") == null || mi.inData.get("ORST").trim() == "?" ? "" : mi.inData.get("ORST").trim()
+		iDESC = mi.inData.get("DESC") == null || mi.inData.get("DESC").trim() == "?" ? "" : mi.inData.get("DESC").trim()
+		iWHLO = mi.inData.get("WHLO") == null || mi.inData.get("WHLO").trim() == "?" ? "" : mi.inData.get("WHLO").trim()
+		iTRST = mi.inData.get("TRST") == null || mi.inData.get("TRST").trim() == "?" ? "" : mi.inData.get("TRST").trim()
+		
+		if (iWHLO.trim() != "") {
+		  validateWhlo(iCONO, iWHLO)
+		} else {
+		  isValidInput = true
+		}
+		if(isValidInput){
+			changeRecord()
+		}   
+  }
+  
+  /*
+	 * Validating the MI input WHLO	 
+	 * @param cono - Company number	  
+	 * @param whlo - Warehouse
+	 *
+	 */
+	private validateWhlo(int cono, String whlo){
+	    
+		DBAction actionmitwhl = database.table("MITWHL").index("00").selectAllFields().build()
+    DBContainer mitwhl = actionmitwhl.getContainer()
+
+    mitwhl.set("MWCONO", cono)
+    mitwhl.set("MWWHLO", whlo)
+
+    if (!actionmitwhl.read(mitwhl)) { 
+      isValidInput = false
+      mi.error("Warehouse does not exist")
+      return
+    } else {
+      isValidInput = true
+    }
+	}
+  
+  /*
+	 * Update record in the EXTOOH table
+	 *
+	 */
+	private void changeRecord(){
+		DBAction actionextooh = database.table("EXTOOH").index("00").selection("EXCONO","EXORNO").build()
+		DBContainer extooh = actionextooh.getContainer()
+
+		extooh.set("EXCONO", iCONO)
+		extooh.set("EXORNO", iORNO)
+		// Update changed information
+		if (!actionextooh.readLock(extooh, updateCallBack)) {
+			mi.error("Record does not exist")
+			return
+		}
+	}
+	
+	/*
+	 * Closure for EXTOOH Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+		if(iCFBK.trim() != "") {lockedResult.set("EXCFBK", iCFBK) }
+		if(iRCOR.trim() != "") {lockedResult.set("EXRCOR", iRCOR) }
+		if(iTO3P.trim() != "") {lockedResult.set("EXTO3P", iTO3P) }
+		if(iSTAT.trim() != "") {lockedResult.set("EXSTAT", iSTAT) }
+		if(iEDPW.trim() != "") {lockedResult.set("EXEDPW", iEDPW) }
+		if(iACKS.trim() != "") {lockedResult.set("EXACKS", iACKS) }
+		if(iACKW.trim() != "") {lockedResult.set("EXACKW", iACKW) }
+		if(iACKA.trim() != "") {lockedResult.set("EXACKA", iACKA) }
+		if(iORST.trim() != "") {lockedResult.set("EXORST", iORST) }
+		if(iWHLO.trim() != "") {lockedResult.set("EXWHLO", iWHLO) }
+		if(iDESC.trim() != "") {lockedResult.set("EXDESC", iDESC) }
+		if(iTRST.trim() != "") {lockedResult.set("EXTRST", iTRST) }
+		
+		lockedResult.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.setInt("EXCHNO", (lockedResult.getInt("EXCHNO") + 1))
+		lockedResult.set("EXCHID", program.getUser())
+		lockedResult.update() 
+  }
+}
