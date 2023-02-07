@@ -1,0 +1,267 @@
+/*
+ * README
+ * This extension is being used to add Sales Tax Exemption from FTXTXC
+ * 
+ * Name: EXT050MI.AddSalesTaxExmp
+ * Description: add Sales Tax Exemption
+ * 
+ * Date	      Changed By      Description
+ * 20221109	  Girish Hosamani    add Sales Tax Exemption
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class AddSalesTaxExmp extends ExtendM3Transaction {
+  private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+  
+  //Input fields
+	private int iCONO, iTYPE, iPRIO, iFRDT, iTODT, iTXID
+	private String iDIVI, iOBV1, iOBV2, iOBV3, iOBV4, iRTXC
+	
+  public AddSalesTaxExmp(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  
+  /*
+   * Main method
+   * @param
+   * @return
+  */
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+    iTYPE = mi.inData.get("TYPE") == null || mi.inData.get("TYPE").trim() in ["", "?"] ? 0 : mi.inData.get("TYPE").trim().toInteger()
+    iPRIO = mi.inData.get("PRIO") == null || mi.inData.get("PRIO").trim() in ["", "?"] ? 0 : mi.inData.get("PRIO").trim().toInteger()
+    iFRDT = mi.inData.get("FRDT") == null || mi.inData.get("FRDT").trim() in ["", "?"] ? 0 : mi.inData.get("FRDT").trim().toInteger()
+    iTODT = mi.inData.get("TODT") == null || mi.inData.get("TODT").trim() in ["", "?"] ? 0 : mi.inData.get("TODT").trim().toInteger()
+    iTXID = mi.inData.get("TXID") == null || mi.inData.get("TXID").trim() in ["", "?"] ? 0 : mi.inData.get("TXID").trim().toInteger()
+    iDIVI = mi.inData.get("DIVI") == null || mi.inData.get("DIVI").trim() == "?" ? "" : mi.inData.get("DIVI").trim()
+    iOBV1 = mi.inData.get("OBV1") == null || mi.inData.get("OBV1").trim() == "?" ? "" : mi.inData.get("OBV1").trim()
+    iOBV2 = mi.inData.get("OBV2") == null || mi.inData.get("OBV2").trim() == "?" ? "" : mi.inData.get("OBV2").trim()
+    iOBV3 = mi.inData.get("OBV3") == null || mi.inData.get("OBV3").trim() == "?" ? "" : mi.inData.get("OBV3").trim()
+    iOBV4 = mi.inData.get("OBV4") == null || mi.inData.get("OBV4").trim() == "?" ? "" : mi.inData.get("OBV4").trim()
+    iRTXC = mi.inData.get("RTXC") == null || mi.inData.get("RTXC").trim() == "?" ? "" : mi.inData.get("RTXC").trim()
+    
+    if (iTODT != 0 || iFRDT != 0) {
+      mi.error("From and To date should be blank") 
+			return
+    }
+    
+    if (iFRDT == 0) {
+      iFRDT = -99999999
+    } 
+    
+    if (iTODT == 0) {
+      iTODT = 99999999
+    }
+    
+    // Validate Type
+    if (iTYPE != 1 && iTYPE != 2) {
+      mi.error("TYPE should be 1 or 2")
+      return
+    }
+    
+    // Validate Priority
+	  if(iPRIO != 1 && iPRIO != 2 && iPRIO != 5){
+	    mi.error("Priority " + iPRIO + " is invalid")
+	    return
+	  }
+    
+    boolean InputsValid = validateInputData()
+    if(InputsValid){
+		  insertdata()
+		}
+  }
+  
+  /*
+	 * Validating the MI input 
+	 */
+	private boolean validateInputData(){
+	  // Validate iDIVIsion
+	  DBAction actioncmndiv = database.table("CMNDIV").index("00").selection().build()
+    DBContainer cmndiv = actioncmndiv.getContainer()
+	  cmndiv.set("CCCONO",iCONO)
+	  cmndiv.set("CCDIVI",iDIVI)
+	  if(!actioncmndiv.read(cmndiv)){
+	    mi.error("iDIVIsion " + iDIVI + " is invalid")
+      return false
+	  } 
+	    
+	  if (iPRIO == 1 && iTYPE == 2) {
+	    // Validate Item Number
+	    DBAction actionmitmas = database.table("MITMAS").index("00").selection().build()
+      DBContainer MITMAS = actionmitmas.getContainer()
+      MITMAS.set("MMCONO", iCONO)
+      MITMAS.set("MMITNO", iOBV1.trim())
+      if (!actionmitmas.read(MITMAS)) {
+      mi.error("Item number "+iOBV1+ " does not exist")
+      return false
+      }
+      
+      // Validate State code
+      DBAction actioncsysts = database.table("CSYSTS").index("00").selection().build()
+      DBContainer csysts = actioncsysts.getContainer()
+	    csysts.set("CKCONO",iCONO)
+	    csysts.set("CKECAR",iOBV2)
+	    csysts.set("CKCSCD","US")
+	    if(!actioncsysts.read(csysts)){
+	      mi.error("State " + iOBV2 + " is invalid")
+        return false
+	    }
+	    
+	    // Validate Tax code
+	    DBAction actioncystab3 = database.table("CSYTAB").index("00").selection().build()
+      DBContainer cystab3 = actioncystab3.getContainer()
+	    cystab3.set("CTCONO", iCONO)
+		  cystab3.set("CTSTCO", "TAXC")
+	    cystab3.set("CTSTKY", iRTXC)
+	    cystab3.set("CTDIVI", "")
+	    if(!actioncystab3.read(cystab3)){
+	      mi.error("Tax code " + iRTXC + " is invalid")
+        return false
+	    }		
+	    
+	    if (iOBV3 != "" || iOBV4 != "") {
+	      mi.error("OBV3 && OBV4 should be blank")
+        return false
+	    }
+	    
+	  } else if (iPRIO == 2 && iTYPE == 2) {
+	    // Validate Item Number
+	    DBAction actionmitmas = database.table("MITMAS").index("00").selection().build()
+      DBContainer MITMAS = actionmitmas.getContainer()
+      MITMAS.set("MMCONO", iCONO)
+      MITMAS.set("MMITNO", iOBV3.trim())
+      if (!actionmitmas.read(MITMAS)) {
+      mi.error("Item number "+iOBV3+ " does not exist")
+      return false
+      }
+      
+      // Validate State code
+      DBAction actioncsysts = database.table("CSYSTS").index("00").selection().build()
+      DBContainer csysts = actioncsysts.getContainer()
+	    csysts.set("CKCONO",iCONO)
+	    csysts.set("CKECAR",iOBV1)
+	    csysts.set("CKCSCD","US")
+	    if(!actioncsysts.read(csysts)){
+	      mi.error("State " + iOBV1 + " is invalid")
+        return false
+	    } 
+	    
+	    // Validate Supplier number
+	    DBAction actioncidmas = database.table("CIDMAS").index("00").selection().build()
+      DBContainer cidmas = actioncidmas.getContainer()
+	    cidmas.set("IDCONO",iCONO)
+	    cidmas.set("IDSUNO",iOBV2)
+	    if(!actioncidmas.read(cidmas)){
+	      mi.error("Supplier " + iOBV2 + " is invalid")
+        return false
+	    } 
+	    
+	    // Validate Tax code
+	    DBAction actioncystab = database.table("CSYTAB").index("00").selection().build()
+      DBContainer cystab = actioncystab.getContainer()
+	    cystab.set("CTCONO", iCONO)
+		  cystab.set("CTSTCO", "TAXC")
+	    cystab.set("CTSTKY", iRTXC)
+	    cystab.set("CTDIVI", "")
+	    if(!actioncystab.read(cystab)){
+	      mi.error("Tax code " + iRTXC + " is invalid")
+        return false
+	    }	
+	    
+	    if (iOBV4 != "") {
+	      mi.error("OBV4 should be blank")
+        return false
+	    }
+	    
+	  } else if (iPRIO == 5 && iTYPE == 2) {
+	    // Validate Tax code
+	    DBAction actioncystab1 = database.table("CSYTAB").index("00").selection().build()
+      DBContainer cystab = actioncystab1.getContainer()
+      cystab.set("CTCONO", iCONO)
+      cystab.set("CTSTCO", "TAXC")
+	    cystab.set("CTSTKY", iOBV1)
+	    cystab.set("CTDIVI", "")
+      if (!actioncystab1.read(cystab)) {
+      mi.error("Tax code "+iOBV1+ " does not exist")
+      return false
+      }
+      
+      // Validate Tax code
+      DBAction actioncystab2 = database.table("CSYTAB").index("00").selection().build()
+      DBContainer cystab2 = actioncystab2.getContainer()
+	    cystab2.set("CTCONO", iCONO)
+		  cystab2.set("CTSTCO", "TAXC")
+	    cystab2.set("CTSTKY", iOBV2)
+	    cystab2.set("CTDIVI", "")
+	    if(!actioncystab2.read(cystab2)){
+	      mi.error("Tax code " + iOBV2 + " is invalid")
+        return false
+	    }
+		  
+		  // Validate Tax code
+      DBAction actioncystab3 = database.table("CSYTAB").index("00").selection().build()
+      DBContainer cystab3 = actioncystab3.getContainer()
+	    cystab3.set("CTCONO", iCONO)
+		  cystab3.set("CTSTCO", "TAXC")
+	    cystab3.set("CTSTKY", iRTXC)
+	    cystab3.set("CTDIVI", "")
+	    if(!actioncystab3.read(cystab3)){
+	      mi.error("Tax code " + iRTXC + " is invalid")
+        return false
+	    }		
+	    
+	    if (iOBV3 != "" || iOBV4 != "") {
+	      mi.error("OBV3 && OBV4 should be blank")
+        return false
+	    }
+	
+	  }
+	  
+	  return true
+	}
+	
+	/*
+	 * Inserts record in the FTXTXC table
+	 *
+	 */
+	private void insertdata(){
+		DBAction actionftxtxc = database.table("FTXTXC").index("00").selection().build()
+		DBContainer FTXTXC = actionftxtxc.getContainer()
+
+		FTXTXC.set("TCCONO", iCONO)
+		FTXTXC.set("TCDIVI", iDIVI)
+    FTXTXC.set("TCTYPE", iTYPE)
+    FTXTXC.set("TCPRIO", iPRIO)
+		FTXTXC.set("TCFRDT", iFRDT)
+    FTXTXC.set("TCTODT", iTODT)
+    FTXTXC.set("TCOBV1", iOBV1) 
+    FTXTXC.set("TCRTXC", iRTXC)
+    FTXTXC.set("TCTXID", iTXID) 
+		FTXTXC.set("TCOBV2", iOBV2)
+		FTXTXC.set("TCOBV3", iOBV3) 
+		FTXTXC.set("TCOBV4", iOBV4)
+		
+		FTXTXC.set("TCRGDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		FTXTXC.set("TCRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		FTXTXC.set("TCLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		FTXTXC.set("TCCHNO", 1)
+		FTXTXC.set("TCCHID", program.getUser())
+		
+		actionftxtxc.insert(FTXTXC,recordExists)
+
+	}	
+	
+	Closure recordExists = {
+		mi.error("Record Already Exists")
+		return
+	}
+}
