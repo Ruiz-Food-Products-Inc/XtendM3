@@ -1,0 +1,168 @@
+/**
+*  Business Engine Extension
+*/
+/****************************************************************************************
+Extension Name:AddChrgModelDtl
+Type : ExtendM3Transaction
+Script Author: Pranoti Khatavkar
+Date: 2022-11-10
+
+Description:
+Add Line charge model detail in OLICHM 
+*/
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+
+public class AddChrgModelDtl extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+  
+  //Input  fields
+	private int iCONO
+	private String iCHSY,iCRID,iPC01,iPC02,iPC03,inCRID,inOBV1,inOBV2,inOBV3
+
+	
+  public AddChrgModelDtl(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi;
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+
+ /**
+   * Main method
+   * @param
+   * @return
+  */	
+  public void main() {
+    logger.debug("In main method")
+    iCONO = (Integer)program.LDAZD.CONO
+    iCHSY = mi.inData.get("CHSY") == null ? "" : mi.inData.get("CHSY")
+    iCRID = mi.inData.get("CRID") == null ? "" : mi.inData.get("CRID")
+    logger.debug("CHSY:"+iCHSY+",CRID:"+iCRID)
+    getRecordFromOLICHA()
+  }
+  
+  //Get record from OLICHA table
+  private void getRecordFromOLICHA(){
+    logger.debug("In getRecordFromOLICHA ")
+    DBAction dbAction = database.table("OLICHA").index("00").selectAllFields().build()
+    DBContainer OLICHA = dbAction.getContainer()
+    
+    OLICHA.set("MJCONO", iCONO)
+    OLICHA.set("MJCRID", iCRID)
+  
+    if (!dbAction.read(OLICHA)) {
+      mi.error("Charge does not exist in OLICHA")
+    }else{
+      iPC01 =  OLICHA.get("MJPC01")
+      iPC02 =  OLICHA.get("MJPC02")
+      iPC03 =  OLICHA.get("MJPC03")
+     
+      logger.debug("Record found in OLICHA,PC01:"+iPC01+",PC02:"+iPC02+",PC03:"+iPC03)
+      insertRecordinOLICHM(iPC01,iPC02,iPC03)
+    }
+  }
+    
+
+	//Insert record in OLICHM table
+  private void insertRecordinOLICHM(String inPC01,String inPC02,String inPC03){
+    logger.debug("In insertRecordinOLICHM")
+      
+		DBAction dbAction = database.table("OLICHM").index("00").selection("MECONO","MECHSY","MECRID").build()
+		DBContainer OLICHM = dbAction.getContainer()
+
+		OLICHM.set("MECONO", iCONO)
+		OLICHM.set("MECHSY", iCHSY)
+		OLICHM.set("MECRID", iCRID)
+    OLICHM.set("MEPC01", inPC01)
+    OLICHM.set("MEPC02", inPC02)
+    OLICHM.set("MEPC03", inPC03)
+    OLICHM.set("METXID",0)
+		
+		OLICHM.set("MERGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		OLICHM.set("MERGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		OLICHM.set("MELMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		OLICHM.set("MECHNO", 1)
+		OLICHM.set("MECHID", program.getUser())
+		
+		dbAction.insert(OLICHM,recordExists)
+		
+		getDataFromOLICHR()
+
+	}
+   	
+	Closure recordExists = {
+		mi.error("Record Already Exists in OLICHM")
+	}   
+    
+  //Get data from OLICHR  
+  private void getDataFromOLICHR(){
+    logger.debug("In getDataFromOLICHR")
+    DBAction dbAction = database.table("OLICHR").index("00").selectAllFields().build()
+		DBContainer OLICHR = dbAction.getContainer()
+
+		OLICHR.set("MICONO", iCONO)
+		OLICHR.set("MICRID", iCRID)
+		OLICHR.set("MIOBV1"," ")
+		OLICHR.set("MIOBV2"," ")
+		OLICHR.set("MIOBV3"," ")
+		OLICHR.set("MIVFDT",0)
+		
+		if (!dbAction.readAll(OLICHR, 2, readFromOLICHR)) {
+      mi.error("Record does not exist in OLICHR table")
+    }
+   }
+   
+    // Closure for OLICHR data retrieval
+		Closure<?> readFromOLICHR = { DBContainer container  ->
+		
+		//Retrieve values from OLICHR
+		  inCRID = container.getString("MICRID")
+      inOBV1 = container.getString("MIOBV1")
+      inOBV2 = container.getString("MIOBV2")
+      inOBV3 = container.getString("MIOBV3")
+      
+      logger.debug("OLICHR Data -->CRID:"+inCRID+",OBV1:"+inOBV1+",OBV2:"+inOBV2+",OBV3:"+inOBV3)
+     
+		  insertInOLICHK(inCRID,inOBV1,inOBV2,inOBV3)
+   
+	}	
+	
+	//Add records in OLICHk table
+	private void insertInOLICHK(String XXCRID,String XXOBV1,String XXOBV2,String XXOBV3){
+	  logger.debug("In insertInOLICHK")
+	  
+	  DBAction dbAction = database.table("OLICHK").index("00").selectAllFields().build()
+		DBContainer OLICHK = dbAction.getContainer()
+		
+		OLICHK.set("MGCONO", iCONO)
+		OLICHK.set("MGCHSY", iCHSY)
+		OLICHK.set("MGCRID", XXCRID)
+	  OLICHK.set("MGOBV1", XXOBV1)
+	  OLICHK.set("MGOBV2", XXOBV2)
+	  OLICHK.set("MGOBV3", XXOBV3)
+	  
+	  OLICHK.set("MGRGDT",  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		OLICHK.set("MGRGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		OLICHK.set("MGLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		OLICHK.set("MGCHNO", 1)
+		OLICHK.set("MGCHID", program.getUser())
+		
+		dbAction.insert(OLICHK,recordExistsInOLICHK)
+	  
+	}
+	
+	Closure recordExistsInOLICHK = {
+		mi.error("Record Already Exists in OLICHK")
+	} 
+}
+  
