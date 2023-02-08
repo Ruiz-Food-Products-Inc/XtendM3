@@ -1,0 +1,119 @@
+/**
+ * README
+ * This is used to update Shipment Load Sequence in MHDISH table.
+ * 
+ * Name: EXT100MI.UpdLoadSeq
+ * Description: To update Shipment Load Sequence in MHDISH table
+ * 
+ * Date	      Changed By            Description
+ * 20221010	  PranotiK          To update Shipment Load Sequence in MHDISH.
+ * 20230201   Girish Hosamani   Added logic for shipment and Delivery combination.
+ *
+ */
+ 
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdLoadSeq extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+  //Input fields
+	private int iCONO,iCONN,XXMULS,inCONO,inINOU
+	private long inDLIX
+  
+  public UpdLoadSeq(MIAPI mi,DatabaseAPI database,LoggerAPI logger,ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+    this.logger = logger
+    this.program = program
+  }
+  
+   /**
+   * Main method
+   * @param
+   * @return
+   */
+  
+  public void main() {
+    iCONO = (Integer)program.getLDAZD().CONO
+    iCONN = (mi.inData.get("CONN") == null || mi.inData.get("CONN").trim().isEmpty()) ? 0 : mi.inData.get("CONN") as Integer
+    logger.info("CONO is :"+iCONO+"CONN is :"+iCONN)
+    XXMULS = 0
+		checkDCONSIRecord()
+		//checkEXTDSHData()
+  }
+  
+	/**
+	 * Set the CONN in DCONSI table
+	 
+	 */
+	private void checkDCONSIRecord(){
+	   logger.info("In checkDCONSIRecord")
+	   DBAction dbAction = database.table("DCONSI").index("00").selection("DACONO","DACONN").build()
+	   DBContainer DCONSI = dbAction.getContainer()
+	   
+	   DCONSI.set("DACONO",iCONO)
+	   DCONSI.set("DACONN",iCONN)
+	   
+	   if(dbAction.read(DCONSI)){
+	    checkEXTDSHData()
+	   }else{
+	     mi.error("Shipment number does not exist")
+	   }
+  }
+
+  //Check Data in EXTDSH and if available pass it as input param to MHDISH
+  private void checkEXTDSHData(){
+  logger.info("In checkEXTDSHData")
+    DBAction dbActionextdsh = database.table("EXTDSH").index("30").selectAllFields().build()
+		DBContainer EXTDSH = dbActionextdsh.getContainer()
+		
+		EXTDSH.set("EXCONO", iCONO)
+		EXTDSH.set("EXINOU", 1)
+		EXTDSH.set("EXCONN",iCONN)
+		
+		Closure<?> readAllRecordEXTDSH = {
+      DBContainer resultContainer ->
+        inCONO = resultContainer.getInt("EXCONO")
+        inINOU = resultContainer.getInt("EXINOU")
+        inDLIX = resultContainer.getLong("EXDLIX")
+        logger.debug("EXTDSH Data -->CONO:"+inCONO+",INOU:"+inINOU+",DLIX:"+inDLIX+"MULS:"+XXMULS)
+        XXMULS = XXMULS+1
+		    updateMHDISHData(inCONO,inINOU,inDLIX, XXMULS)
+    }
+    
+    if (!dbActionextdsh.readAll(EXTDSH, 3, readAllRecordEXTDSH)) {
+      logger.debug("Shipment not found in EXTDSH")
+      //mi.error("Transaction not found")
+      return
+    }
+  }
+  
+  private void updateMHDISHData(int XXCONO,int XXINOU,long XXDLIX,int XXMULS){
+    logger.debug("in updateMHDISHData :"+XXCONO+","+XXINOU+","+XXDLIX)
+    DBAction dbAction = database.table("MHDISH").index("00").selection().build()
+		DBContainer MHDISH = dbAction.getContainer()
+		
+    MHDISH.set("OQCONO",XXCONO)
+    MHDISH.set("OQINOU",XXINOU)
+    MHDISH.set("OQDLIX",XXDLIX)
+    
+    Closure<?> updateCallBack = { LockedResult lockedResult ->
+    lockedResult.set("OQMULS", XXMULS)
+    logger.debug("MULS is:"+lockedResult.get("OQMULS"))
+		
+		// Update changed information
+		lockedResult.set("OQLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.setInt("OQCHNO", (lockedResult.getInt("OQCHNO") + 1))
+		lockedResult.set("OQCHID", program.getUser())
+		lockedResult.update()
+    }
+      
+    dbAction.readLock(MHDISH, updateCallBack)
+	}
+}

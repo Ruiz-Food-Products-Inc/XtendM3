@@ -1,0 +1,95 @@
+/**
+ * README
+ * This extension is being used to update the record in EXTDSH table.
+ * This is used to update delivery related custom information.
+ * Name: EXT100MI.UpdDelyCstmInfo
+ * Description: To  update delivery related custom information in EXTDSH table
+ * Date	      Changed By            Description
+ * 20221020  Pranoti Khatavkar    To update a record in the EXTDSH table
+ *
+ */
+
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+
+
+public class UpdDelyCstmInfo extends ExtendM3Transaction {
+  private final MIAPI mi
+  private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+
+	
+	//Input  fields
+	private int iCONO,iINOU,iDLIX,iCONN,iMULS
+  private String iRIDN,iSEAL,iTRLN,inCONN,inMULS
+  
+  public UpdDelyCstmInfo(MIAPI mi,DatabaseAPI database, LoggerAPI logger, ProgramAPI program) {
+    this.mi = mi
+    this.database = database
+		this.logger = logger
+		this.program = program
+  }
+  
+  /**
+	 * Main method
+	 *
+	 */
+  public void main() {
+    logger.debug("In main method")
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+    iINOU = mi.inData.get("INOU") == null ? 0 : mi.inData.get("INOU") as Integer
+    iDLIX = mi.inData.get("DLIX") == null ? 0 : mi.inData.get("DLIX") as Integer
+	  iCONN = mi.inData.get("CONN") == null || mi.inData.get("CONN").trim() in ["", "?"] ? 0 : mi.inData.get("CONN").trim().toInteger()
+	  iRIDN = mi.inData.get("RIDN") == null ? "" : mi.inData.get("RIDN")
+	  iMULS = mi.inData.get("MULS") == null || mi.inData.get("MULS").trim() in ["", "?"] ? 0 : mi.inData.get("MULS").trim().toInteger()
+	  iSEAL = mi.inData.get("SEAL") == null ? "" : mi.inData.get("SEAL")
+	  iTRLN = mi.inData.get("TRLN") == null ? "" : mi.inData.get("TRLN")
+
+	  //If no error then update the record
+		updateRecordInEXTDSH()
+  }
+  
+    
+  /**
+	 * Update record in the EXTDSH table
+	 *
+	 */
+	private void updateRecordInEXTDSH(){
+		DBAction dbAction = database.table("EXTDSH").index("00").selection("EXCONO","EXINOU","EXDLIX").build()
+		DBContainer EXTDSH = dbAction.getContainer()
+
+		EXTDSH.set("EXCONO", iCONO)
+		EXTDSH.set("EXINOU", iINOU)
+		EXTDSH.set("EXDLIX", iDLIX)
+		
+		// Update changed information
+		if (!dbAction.readLock(EXTDSH, updateCallBack)) {
+			mi.error("Record does not exist in EXTDSH")
+			return
+		}
+	}
+	
+	/**
+	 * Closure for EXTDSH Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+
+		if(iCONN != 0){lockedResult.set("EXCONN", iCONN) }
+		if(iRIDN.trim() != "") {lockedResult.set("EXRIDN", iRIDN) }
+    if(iMULS != 0){lockedResult.set("EXMULS", iMULS) }
+    if(iSEAL.trim() != "") {lockedResult.set("EXSEAL", iSEAL) }
+    if(iTRLN.trim() != "") {lockedResult.set("EXTRLN", iTRLN) }
+		
+		
+		// Update changed information
+		lockedResult.set("EXLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.set("EXCHID", program.getUser())
+		lockedResult.setInt("EXCHNO", (lockedResult.getInt("EXCHNO") + 1))
+		lockedResult.update()
+  
+  }
+}
