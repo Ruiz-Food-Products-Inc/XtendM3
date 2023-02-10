@@ -1,0 +1,167 @@
+/**
+ * README
+ * This is used to update PO Order status in PPS370.
+ * 
+ * Name: EXT370MI.UpdateStatus
+ * Description: To update PO Order status in the MXHEAD, MXLINE, MXBETR table or PPS370
+ * 
+ * Date	      Changed By            Description
+ * 20221010	  Girish Hosamani      To update PO Order status in the MXHEAD, MXLINE, MXBETR table or PPS370
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdateStatus extends ExtendM3Transaction {
+  private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+	
+	//Input fields
+	private int iCONO,iPNLI
+  private String iPUNO,iMSGN
+
+  //Indication of the error flag
+	private boolean isValidPOLine
+  
+  public UpdateStatus(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  
+  /**
+   * Main method
+   * @param
+   * @return
+   */
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+    iPNLI = mi.inData.get("PNLI") == null || mi.inData.get("PNLI").trim() in ["", "?"] ? 0 : mi.inData.get("PNLI").trim().toInteger()
+    iPUNO = mi.inData.get("PUNO") == null || mi.inData.get("PUNO").trim() == "?" ? "" : mi.inData.get("PUNO").trim()
+    iMSGN = mi.inData.get("MSGN") == null || mi.inData.get("MSGN").trim() == "?" ? "" : mi.inData.get("MSGN").trim()
+    
+    //Validates the input parameters
+		validatePOLine()
+		
+		//Flag is set to False if an error exists in the input fields
+		if(isValidPOLine){
+			 updateMXHEAD()
+			 updateMXLINE()
+			 updateMXBETR()
+		}
+   
+  }
+  
+  /**
+	 * Validating the MI input values
+   * @param cono - Company number
+   * @param puno - Purchase Order number
+   * @param pnli - Purchase Order line number
+	 *
+	 */
+	private validatePOLine(){
+	  DBAction actionmxline = database.table("MXLINE").index("00").selection().build()
+    DBContainer mxline = actionmxline.getContainer()
+    
+    mxline.set("IBCONO", iCONO)
+    mxline.set("IBPUNO", iPUNO)
+    mxline.set("IBPNLI", iPNLI)
+    mxline.set("IBMSGN", iMSGN)
+    
+    if (!actionmxline.read(mxline)) {  
+      isValidPOLine = false
+      mi.error("Order Line does not exist")
+      return
+    } else {
+      isValidPOLine = true
+      return
+    }
+	}
+	
+	/**
+	 * Update record in the MXHEAD table
+	 *
+	 */
+private void updateMXHEAD(){
+		DBAction dbAction = database.table("MXHEAD").index("00").selection().build()
+		DBContainer MXHEAD = dbAction.getContainer()
+		
+		MXHEAD.set("IACONO", iCONO)
+		MXHEAD.set("IAPUNO", iPUNO)
+		MXHEAD.set("IAMSGN", iMSGN)
+		
+		Closure<?> updateMXHEAD = { LockedResult lockedResult ->
+		  lockedResult.set("IASTAT", "10") 
+		  lockedResult.set("IAPUSL", "10") 
+		  lockedResult.set("IAPUST", "10") 
+		
+		  lockedResult.set("IALMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		  lockedResult.set("IACHNO", (lockedResult.getInt("IACHNO") + 1))
+		  lockedResult.set("IACHID", program.getUser())
+		  lockedResult.update()
+    }
+    
+		if (!dbAction.readLock(MXHEAD, updateMXHEAD)) {
+			mi.error("Purchase Order "+iPUNO+ " does not exist")
+			return
+		}
+	}
+	
+  /**
+	 * Update record in the MXLINE table
+	 *
+	 */
+	private void updateMXLINE(){
+		DBAction dbAction = database.table("MXLINE").index("00").selection().build()
+		DBContainer MXLINE = dbAction.getContainer()
+		
+		MXLINE.set("IBCONO", iCONO)
+		MXLINE.set("IBPUNO", iPUNO)
+		MXLINE.set("IBPNLI", iPNLI)
+		MXLINE.set("IBMSGN", iMSGN)
+		
+		Closure<?> updateMXLINE = { LockedResult lockedResult ->
+		  lockedResult.set("IBSTAT", "10") 
+		  lockedResult.set("IBPUSL", "10") 
+		
+		  lockedResult.set("IBLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		  lockedResult.set("IBCHNO", (lockedResult.getInt("IBCHNO") + 1))
+		  lockedResult.set("IBCHID", program.getUser())
+		  lockedResult.update()
+    }
+    
+		if (!dbAction.readLock(MXLINE, updateMXLINE)) {
+			mi.error("Purchase Order line "+iPUNO+ ":" +iPNLI+ " does not exist")
+			return
+		}
+	}
+  
+  /**
+	 * Update record in the MXBETR table
+	 *
+	 */
+	private void updateMXBETR(){
+		DBAction dbAction = database.table("MXBETR").index("00").selection().build()
+		DBContainer MXBETR = dbAction.getContainer()
+		
+		MXBETR.set("BECONO", iCONO)
+		MXBETR.set("BEMSGN", iMSGN)
+		
+    Closure<?> updateMXBETR = { LockedResult lockedResult ->
+		  lockedResult.set("BESTAT", "10") 
+		
+		  lockedResult.set("BELMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		  lockedResult.set("BECHNO", (lockedResult.getInt("BECHNO") + 1))
+		  lockedResult.set("BECHID", program.getUser())
+		  lockedResult.update()
+    }
+		
+		if (!dbAction.readLock(MXBETR, updateMXBETR)) {
+			mi.error("Message Number "+iMSGN+" does not exist")
+			return
+		}
+	}
+}

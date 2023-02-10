@@ -1,0 +1,159 @@
+/**
+ * README
+ * This is used to update PO Order LINES in PPS370\PPS371.
+ * 
+ * Name: EXT370MI.UpdateLine
+ * Description: To update PO Order status in MXLINE table or PPS370\PPS371
+ * 
+ * Date	      Changed By            Description
+ * 20221017	  Girish Hosamani      To update PO Order status in MXLINE table or PPS370\PPS371
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdateLine extends ExtendM3Transaction {
+  private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+	private final LoggerAPI logger
+	
+	//Input fields
+	private int iCONO, iPNLI, iGEOC
+	private double iPUPR, iORQA, iPUCD, updatedPrice
+  private String iPUNO, iMSGN, iITNO, iPUNN, iPPUN, iOURR, iOURT
+
+  public UpdateLine(MIAPI mi, DatabaseAPI database, ProgramAPI program, LoggerAPI logger) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+		this.logger = logger
+  }
+  
+   /**
+   * Main method
+   * @param
+   * @return
+   */
+  
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? program.LDAZD.CONO.toString() as Integer : mi.inData.get("CONO") as Integer
+    iPNLI = mi.inData.get("PNLI") == null || mi.inData.get("PNLI") == "" ? 0 : mi.inData.get("PNLI") as Integer
+  	iGEOC = mi.inData.get("GEOC") == null || mi.inData.get("GEOC").trim() in ["", "?"] ? 0 : mi.inData.get("GEOC") as Integer
+  	iPUCD = mi.inData.get("PUCD") == null || mi.inData.get("PUCD").trim() in ["", "?"] ? 0 : mi.inData.get("PUCD") as Double
+  	iORQA = mi.inData.get("ORQA") == null || mi.inData.get("ORQA").trim() in ["", "?"] ? 0 : mi.inData.get("ORQA") as Double
+  	iPUPR = mi.inData.get("PUPR") == null || mi.inData.get("PUPR").trim() in ["", "?"] ? 0 : mi.inData.get("PUPR") as Double
+  	iPUNO = mi.inData.get("PUNO") == null || mi.inData.get("PUNO").trim() == "?" ? "" : mi.inData.get("PUNO").trim()
+    iMSGN = mi.inData.get("MSGN") == null || mi.inData.get("MSGN").trim() == "?" ? "" : mi.inData.get("MSGN").trim()
+  	iITNO = mi.inData.get("ITNO") == null || mi.inData.get("ITNO").trim() == "?" ? "" : mi.inData.get("ITNO").trim()   	
+  	iPUNN = mi.inData.get("PUNN") == null || mi.inData.get("PUNN").trim() == "?" ? "" : mi.inData.get("PUNN").trim()
+  	iPPUN = mi.inData.get("PPUN") == null || mi.inData.get("PPUN").trim() == "?" ? "" : mi.inData.get("PPUN").trim()  	
+  	iOURR = mi.inData.get("OURR") == null || mi.inData.get("OURR").trim() == "?" ? "" : mi.inData.get("OURR").trim()
+  	iOURT = mi.inData.get("OURT") == null || mi.inData.get("OURT").trim() == "?" ? "" : mi.inData.get("OURT").trim()
+
+    updatedPrice = iPUPR
+    if (iPUPR != null && iPUPR != 0 && iPUCD != null && iPUCD != 0) {
+      updatedPrice = iPUPR/iPUCD
+    }
+    //Validates the input parameters
+		boolean InputsValid = validatInpuValues()
+		
+		logger.debug("Inside manin function: "+updatedPrice)
+		
+		//Flag is set to False if an error exists in the input fields
+		if(InputsValid){
+			 updateMXLINEdata()
+		}
+  }
+  
+  /**
+	 * Validating the MI input values 
+	 * @param cono - Company number
+   * @param puno - Purchase Order number
+   * @param pnli - Purchase Order line number
+	 *
+	 */
+	private boolean validatInpuValues(){
+	  logger.debug("Inside validatInpuValues")
+	  
+	  if (iITNO.trim() != "") {
+	    DBAction actionmitmas = database.table("MITMAS").index("00").selection().build()
+      DBContainer MITMAS = actionmitmas.getContainer()
+      MITMAS.set("MMCONO", iCONO)
+      MITMAS.set("MMITNO", iITNO.trim())
+      if (!actionmitmas.read(MITMAS)) {
+      mi.error("Item number "+iITNO+ " does not exist")
+      return false
+      }
+	  }
+	  
+	  if (iGEOC != null && iGEOC != 0) {
+	    DBAction actioncgeoju = database.table("CGEOJU").index("00").selection().build()
+      DBContainer CGEOJU = actioncgeoju.getContainer()
+      CGEOJU.set("T0CONO", iCONO)
+      CGEOJU.set("T0DIVI", "")
+    	CGEOJU.set("T0GEOC", iGEOC)
+      if (!actioncgeoju.read(CGEOJU)) {
+      mi.error("Geographical code "+iGEOC+ " does not exist")
+      return false
+      }
+	  }
+    
+    	  
+    DBAction actionmxline = database.table("MXLINE").index("00").selection().build()
+    DBContainer mxline = actionmxline.getContainer()    
+    mxline.set("IBCONO", iCONO)
+    mxline.set("IBPUNO", iPUNO)
+    mxline.set("IBPNLI", iPNLI)
+    mxline.set("IBMSGN", iMSGN)    
+    if (!actionmxline.read(mxline)) { 
+    mi.error("Order Line does not exist")
+    return false
+    }
+    
+    return true
+	}
+	
+	 /**
+	 * Update record in the MXLINE table
+	 *
+	 */
+	private void updateMXLINEdata(){
+	  logger.debug("Inside updateMXLINEdata "+iCONO+ ":"+iPUNO+":"+iPNLI+ ":"+iMSGN+":"+iORQA+ ":"+updatedPrice+":"+iPUCD+ ":"+iGEOC+":"+iITNO+ ":"+iPUNN+":"+iPPUN+":"+iOURR+ ":"+iOURT)
+		DBAction dbAction = database.table("MXLINE").index("00").selection().build()
+		DBContainer MXLINE = dbAction.getContainer()
+
+		MXLINE.set("IBCONO", iCONO)
+		MXLINE.set("IBPUNO", iPUNO)
+		MXLINE.set("IBPNLI", iPNLI)
+		MXLINE.set("IBMSGN", iMSGN)
+		// Update changed information
+		if (!dbAction.readLock(MXLINE, updateMXLINE)) {
+			mi.error("Purchase Order line "+iPUNO+ ":" +iPNLI+ " does not exist")
+			return
+		}
+	}
+	
+	/**
+	 * Closure for MXLINE Update
+	 */
+		Closure<?> updateMXLINE = { LockedResult lockedResult ->
+  	  if(iORQA != null && iORQA != 0) {lockedResult.set("IBORQA", iORQA.toDouble()) }
+  	  if(updatedPrice != null && updatedPrice != 0) {lockedResult.set("IBPUPR", updatedPrice.toDouble()) }
+  	  if(iPUCD != null && iPUCD != 0) {lockedResult.set("IBPUCD", iPUCD) }
+  	  if(iGEOC != null && iGEOC != 0) {lockedResult.set("IBGEOC", iGEOC) }
+      if(iITNO.trim() != "") {lockedResult.set("IBITNO", iITNO) }
+      if(iPUNN.trim() != "") {lockedResult.set("IBPUNN", iPUNN) }
+      if(iPPUN.trim() != "") {lockedResult.set("IBPPUN", iPPUN) }    
+      if(iOURR.trim() != "") {lockedResult.set("IBOURR", iOURR) }
+      if(iOURT.trim() != "") {lockedResult.set("IBOURT", iOURT) }
+  		
+  		// Update changed information
+  		lockedResult.set("IBLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+  		lockedResult.set("IBCHNO", (lockedResult.getInt("IBCHNO") + 1))
+  		lockedResult.set("IBCHID", program.getUser())
+  		lockedResult.update()
+  }
+}

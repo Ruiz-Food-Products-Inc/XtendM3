@@ -1,0 +1,98 @@
+/**
+ * README
+ * This is used to update PO Order type in MXHEAD or PPS370.
+ * 
+ * Name: EXT370MI.UpdateType
+ * Description: To update PO Order type in the MXHEAD table or PPS370
+ * 
+ * Date	      Changed By            Description
+ * 20221007	  Girish Hosamani      To update PO Order type in the MXHEAD table or PPS370
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdateType extends ExtendM3Transaction {
+  private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+	
+	//Input fields
+	private int iCONO
+  private String iPUNO,iORTY
+  
+  //Indication of the error flag
+	private boolean isValidorty
+  
+  public UpdateType(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  
+  /**
+   * Main method
+   * @param
+   * @return
+   */
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+    iPUNO = mi.inData.get("PUNO") == null || mi.inData.get("PUNO").trim() == "?" ? "" : mi.inData.get("PUNO").trim()
+    iORTY = mi.inData.get("ORTY") == null || mi.inData.get("ORTY").trim() == "?" ? "" : mi.inData.get("ORTY").trim()
+    
+    //Validates the order type
+		validateORTY()
+		
+		//Flag is set to False if an error exists in the input fields
+		if(isValidorty){
+			 updateMXHEADRecord()
+		}
+  }
+  
+  /**
+	 * Validating the MI input ORTY
+	 *
+	 */
+	private validateORTY(){
+		DBAction actionmpordt = database.table("MPORDT").index("00").selection().build()
+    DBContainer mpordt = actionmpordt.getContainer()
+
+    mpordt.set("OTCONO", iCONO)
+    mpordt.set("OTORTY", iORTY)
+    
+    if (!actionmpordt.read(mpordt)) {  
+      isValidorty = false
+      mi.error("Purchase Order Type "+iORTY+ " does not exist")
+      return
+    } else {
+      isValidorty = true
+    }
+	}
+	
+	/**
+	 * Update record in the MXHEAD table
+	 *
+	 */
+	private void updateMXHEADRecord(){
+		DBAction dbAction = database.table("MXHEAD").index("00").selection().build()
+		DBContainer MXHEAD = dbAction.getContainer()
+
+		MXHEAD.set("IACONO", iCONO)
+		MXHEAD.set("IAPUNO", iPUNO)
+		
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+		  if(iORTY.trim() != "") {lockedResult.set("IAORTY", iORTY) }
+		  
+		  lockedResult.set("IALMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		  lockedResult.set("IACHNO", (lockedResult.getInt("IACHNO") + 1))
+		  lockedResult.set("IACHID", program.getUser())
+		  lockedResult.update()
+    }
+		if (!dbAction.readAllLock(MXHEAD, 2, updateCallBack)) {
+			mi.error("Purchase Order "+iPUNO+ " does not exist")
+			return
+		}
+	}
+}
