@@ -1,0 +1,295 @@
+/**
+ * README
+ * This is used to update Planning Date, Confirmed Delivery Date and Departure Date.
+ * 
+ * Name: EXT100MI.UpdCnfDlyDate
+ * Description: To update  Planning Date, Confirmed Delivery Date and Departure Date.
+ * 
+ * Date	      Changed By            Description
+ * 20221025	  Girish Hosamani      To update Planning Date, Confirmed Delivery Date and Departure Date.
+ * 20230127	  Chetan Sharma        API is sending error message before finishing the IsCO and IsDO check.
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdCnfDlyDate extends ExtendM3Transaction {
+  private final MIAPI mi
+	private final DatabaseAPI database
+	private final LoggerAPI logger
+	private final ProgramAPI program
+	private final UtilityAPI utility
+	private final MICallerAPI miCaller
+	
+	//Input fields
+	private int iCONO, iPONR, iPLDT, iPLHM, iDSDT, iDSHM, iCODT, iCOHM
+  private String iORNO
+  
+  //Indication of the order type
+	private boolean IsCO, IsDO
+  
+  public UpdCnfDlyDate(MIAPI mi, DatabaseAPI database, LoggerAPI logger, ProgramAPI program, UtilityAPI utility, MICallerAPI miCaller) {
+    this.mi = mi
+		this.database = database
+		this.logger = logger
+		this.program = program
+		this.utility = utility
+		this.miCaller = miCaller
+  }
+  
+   /**
+   * Main method
+   * @param
+   * @return
+   */
+  
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? program.LDAZD.CONO.toString() as Integer : mi.inData.get("CONO") as Integer
+    iPONR = mi.inData.get("PONR") == null || mi.inData.get("PONR").trim() in ["", "?"] ? 0 : mi.inData.get("PONR").trim().toInteger()
+    iPLDT = mi.inData.get("PLDT") == null || mi.inData.get("PLDT").trim() in ["", "?"] ? 0 : mi.inData.get("PLDT").trim().toInteger()
+    iPLHM = mi.inData.get("PLHM") == null || mi.inData.get("PLHM").trim() in ["", "?"] ? 0 : mi.inData.get("PLHM").trim().toInteger()
+    iDSDT = mi.inData.get("DSDT") == null || mi.inData.get("DSDT").trim() in ["", "?"] ? 0 : mi.inData.get("DSDT").trim().toInteger()
+    iDSHM = mi.inData.get("DSHM") == null || mi.inData.get("DSHM").trim() in ["", "?"] ? 0 : mi.inData.get("DSHM").trim().toInteger()
+    iCODT = mi.inData.get("CODT") == null || mi.inData.get("CODT").trim() in ["", "?"] ? 0 : mi.inData.get("CODT").trim().toInteger()
+    iCOHM = mi.inData.get("COHM") == null || mi.inData.get("COHM").trim() in ["", "?"] ? 0 : mi.inData.get("COHM").trim().toInteger()
+    iORNO = mi.inData.get("ORNO") == null || mi.inData.get("ORNO").trim() == "?" ? "" : mi.inData.get("ORNO").trim()
+    
+    if (iDSDT == 0) {
+      iDSDT = iPLDT
+    }
+    
+     if (iDSHM == 0) {
+      iDSHM = iPLHM
+    }
+
+    if (iPLDT != 0 && !utility.call("DateUtil","isDateValid", iPLDT.toString().trim(), "yyyyMMdd")) {
+      mi.error("incorrect date format "+iPLDT) 
+			return
+    }
+    
+    if (iDSDT != 0 && !utility.call("DateUtil","isDateValid", iDSDT.toString().trim(), "yyyyMMdd")) {
+      mi.error("incorrect date format "+iDSDT)
+			return
+    }
+    
+    if (iCODT != 0 && !utility.call("DateUtil","isDateValid", iCODT.toString().trim(), "yyyyMMdd")) {
+      mi.error("incorrect date format "+iCODT)
+			return
+    }
+    
+    //Validates the input parameters
+		validateOIS100ORNO()
+		
+		if (!IsCO) {
+		  validateMMS100ORNO()
+		}
+		
+		if(!IsCO && !IsDO) {
+		  mi.error("Order line does not exist. ORNO: " + iORNO + ", PONR: " + iPONR)
+		  return
+		}
+		
+		logger.debug("debug IsDO:"+IsDO)
+		logger.debug("debug IsCO:"+IsCO)
+		
+		if (IsCO) {
+		  updateOOLINEPLDT()
+		}
+		
+		if (iPLDT != 0) {
+		  updateMITPLOPLDT()
+		  addMMM920()
+		}
+  }
+  
+ /**
+  * Validating the MI input values and identifing the order type, IsCO or not?
+  * 
+  * @param cono - Company number
+  * @param orno - Order number
+  * @param ponr - Line number
+  * 
+  * return boolean
+  */
+	private validateOIS100ORNO(){
+	  DBAction actionooline = database.table("OOLINE").index("00").selection().build()
+    DBContainer ooline = actionooline.getContainer()
+
+    ooline.set("OBCONO", iCONO)
+    ooline.set("OBORNO", iORNO)
+    ooline.set("OBPONR", iPONR)
+    
+    // Fetch the information form the table and output it
+    if (actionooline.read(ooline)) {
+      IsCO = true // This means customer order
+    } else {
+      IsCO = false // Customer order line does not exist
+    }
+	}
+	
+	/**
+  * Validating the MI input values and identifing the order type, IsDO or not?
+  */
+	private validateMMS100ORNO(){
+	  DBAction actionmgline = database.table("MGLINE").index("00").selection().build()
+    DBContainer mgline = actionmgline.getContainer()
+    
+    mgline.set("MRCONO", iCONO)
+    mgline.set("MRORNO", iORNO)
+    mgline.set("MRPONR", iPONR)
+    
+    // Fetch the information form the table and output it
+    if (actionmgline.read(mgline)) {
+      IsDO = true // This is Distribution Order
+    } else {
+       IsDO = false // Distribution order line does not exist
+    }
+	}
+	
+	/**
+  * To update the Dates at Order Lines(OIS300\OOLINE) 
+  * 
+  * @param cono - Company number
+  * @param orno - Order number
+  * @param ponr - Line number
+  * @param codt - Planning date
+  * @param cohm - Planning time
+  * @param dsdt - Departure date
+  * @param dshm - Departure time
+  * @param codt - Confirmed Delivery date
+  * @param cohm - Confirmed Delivery time
+  * 
+  * return boolean
+ */
+	private void updateOOLINEPLDT(){
+		DBAction dbAction = database.table("OOLINE").index("00").selection().build()
+		DBContainer OOLINE = dbAction.getContainer()
+
+		OOLINE.set("OBCONO", iCONO)
+		OOLINE.set("OBORNO", iORNO)
+		OOLINE.set("OBPONR", iPONR)
+		// Update changed information
+		if (!dbAction.readLock(OOLINE, callbackupdateOOLINEPLDT)) {
+		  mi.error("Customer order line does not exist")
+			return
+		}
+	}
+	/** 
+	*Closure for OOLINE Update
+	*/ 
+		Closure<?> callbackupdateOOLINEPLDT = { LockedResult lockedResult ->
+
+    if(iPLDT != 0) {
+      lockedResult.set("OBPLDT", iPLDT)
+      lockedResult.set("OBDSDT", iPLDT)
+    }
+    if(iPLHM != 0) {
+      lockedResult.set("OBPLHM", iPLHM)
+      lockedResult.set("OBDSHM", iPLHM)
+    }
+    
+    if(iCODT != 0) {
+      lockedResult.set("OBCODT", iCODT)
+      lockedResult.set("OBCODZ", iCODT)
+    }
+    if(iCOHM != 0) {
+      lockedResult.set("OBCOHM", iCOHM)
+      lockedResult.set("OBCOHZ", iCOHM)
+    }
+    
+    if(iDSDT != 0) {lockedResult.set("OBDSDT", iDSDT) }
+    if(iDSHM != 0) {lockedResult.set("OBDSHM", iDSHM) }
+		// Update changed information
+		lockedResult.set("OBLMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.set("OBCHNO", (lockedResult.getInt("OBCHNO") + 1))
+		lockedResult.set("OBCHID", program.getUser())
+		
+		if(!lockedResult.update()){
+		  mi.error("Failed to update OOLINE")
+		  return
+		}
+	}
+	
+	/**
+  * To update or add record to Material plan (MITPLO)
+  * 
+  * @param cono - Company number
+  * @param orno - Order number
+  * @param ponr - Line number
+  * 
+  * return boolean
+ */
+	private void updateMITPLOPLDT(){
+		DBAction dbAction = database.table("MITPLO").index("10").selectAllFields().build()
+		DBContainer MITPLO = dbAction.getContainer()
+		
+		MITPLO.set("MOCONO", iCONO)
+		if (IsCO) {
+		  MITPLO.set("MOORCA", "311")
+		}
+		if (IsDO) {
+		  MITPLO.set("MOORCA", "511")
+		}
+		MITPLO.set("MORIDN", iORNO)
+		MITPLO.set("MORIDL", iPONR)
+		// Update changed information
+		if (!dbAction.readAllLock(MITPLO, 4, callbackupdateMITPLOPLDT)) {
+			mi.error("Order line does not exist")
+			return
+		}
+	}
+	/** 
+	*Closure for MITPLO Update
+	*/
+		Closure<?> callbackupdateMITPLOPLDT = { LockedResult lockedResult ->
+      java.util.Set<String> columns = lockedResult.getAllColumns()
+      java.util.Iterator iterator = columns.iterator()
+      
+      DBAction dbActionMITPLO = database.table("MITPLO").index("00").selection().build()
+      DBContainer dbContainerMITPLO = dbActionMITPLO.getContainer()
+      
+      while(iterator.hasNext()){
+        String column = iterator.next().toString()
+        dbContainerMITPLO.set(column, lockedResult.get(column))
+      }
+      
+      if(iPLDT != 0) {dbContainerMITPLO.set("MOPLDT", iPLDT) }
+      
+      if (!lockedResult.delete()) {
+        logger.debug("Failed to delete MITPLO record")
+      }
+      
+      if (!dbActionMITPLO.insert(dbContainerMITPLO)) {
+        logger.debug("Failed to insert MITPLO record")
+      }
+	}	
+	
+	/**
+  * Inserts record in the MMM920 table
+  * 
+  * @param cono - Company number
+  * @param orno - Order number
+  * @param ponr - Line number
+  * 
+  * return boolean
+ */
+	private void addMMM920(){
+		DBAction dbAction = database.table("MMM920").index("20").selection("MACONO","MARIDN").build()
+		DBContainer MMM920 = dbAction.getContainer()
+
+		MMM920.set("MACONO", iCONO)
+		MMM920.set("MARIDN", iORNO)
+		MMM920.set("MAPGNM", "OOLINEPI")
+		
+		MMM920.set("MARGDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		MMM920.set("MARGTM", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toInteger())
+		MMM920.set("MACHID", program.getUser())
+		
+		if (!dbAction.insert(MMM920)) {
+		  logger.debug("Failed to insert MMM920 record")
+		}
+	}
+	
+}
