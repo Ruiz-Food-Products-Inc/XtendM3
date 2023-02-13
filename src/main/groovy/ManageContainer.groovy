@@ -35,7 +35,10 @@ class ManageContainer extends ExtendM3Utility {
     actionMITLOC.readAll(containerMITLOC, keys, limit, {DBContainer c ->
       String lastCAMU = c.getString("MLCAMU")
       String suffix = getSuffix(lastCAMU)
-      int nextSuffix = (suffix as int) + 1
+      int nextSuffix = 1
+      if (suffix) {
+        nextSuffix =  (suffix as int) + 1
+      }
       nextCAMU = baseCAMU + "_" + String.format("%03d", nextSuffix)
     })
 
