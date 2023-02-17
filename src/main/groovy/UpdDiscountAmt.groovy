@@ -1,3 +1,14 @@
+/**
+ * README
+ * This transaction will population update the discount amounts
+ * using the values retrieved from EXT100MI.GetDiscountDet
+ *
+ * Name: EXT100MI_UpdDiscountDet
+ * Description: Update discount details
+ * Date	      Changed By            Description
+ * 20230217	  JHAGLER               initial development
+ */
+
 public class UpdDiscountAmt extends ExtendM3Transaction {
   private final MIAPI mi
   private final ProgramAPI program
@@ -19,6 +30,7 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
     String ORNO = mi.inData.get("ORNO").toString()
     if (!ORNO) {
       mi.error("Order number is mandatory")
+      return
     }
 
     logger.debug("Updating discount amounts for order ${ORNO}")
@@ -38,6 +50,7 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
 
     if (orderLineNumbers.size() == 0) {
       mi.error("Could not retrieve orders lines")
+      return
     }
 
     logger.debug("Found lines to process ${orderLineNumbers}")
@@ -121,6 +134,12 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
     }
   }
 
+  /**
+   * Get order line numbers for the customer order
+   * @param ORNO
+   * @return
+   */
+
   List<String> getOrderLineNumbers(String ORNO) {
     List<String> orderLineNumbers = []
     def params = [
@@ -133,6 +152,13 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
     return orderLineNumbers
   }
 
+
+  /**
+   * Get the order line details using OIS100MI.GetLine2
+   * @param ORNO
+   * @param PONR
+   * @return
+   */
   Map<String, ?> getOrderLine(String ORNO, String PONR) {
     Map<String, ?> orderLine = null
     def params = [
@@ -146,6 +172,12 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
   }
 
 
+  /**
+   * Get the order line discount details from EXT100MI.GetDiscountDet
+   * @param ORNO
+   * @param PONR
+   * @return
+   */
   private List<Map<String, ?>> getDiscountDetails(String ORNO, String PONR) {
     List<Map<String, ?>> details = []
     def params = [
@@ -159,7 +191,12 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
   }
 
 
-
+  /**
+   * Call OIS100MI.UpdPriceInfo to update the discount amounts
+   * @param ORNO
+   * @param PONR
+   * @param params
+   */
   private void updatePrice(String ORNO, String PONR, Map<String, String> params) {
     params.put("ORNO", ORNO)
     params.put("PONR", PONR)
@@ -167,6 +204,7 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
     miCaller.call("OIS100MI", "UpdPriceInfo", params, {Map<String, ?> resp ->
       if (resp.error) {
         mi.error(resp.error.toString())
+        return
       }
     })
   }
