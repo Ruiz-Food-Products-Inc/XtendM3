@@ -31,6 +31,10 @@ class GetBackflushSts extends ExtendM3Transaction {
     double RPQA = mi.inData.get("RPQA") as double
 
     String PRNO = getProduct(CONO, FACI, MFNO)
+    if (!PRNO) {
+      mi.error("Could not find product number for MO ${MFNO}")
+      return
+    }
 
     String msg = validateBackflushedMaterials(CONO, FACI, PRNO, MFNO, RPQA)
     if (!msg.isEmpty()) {
@@ -52,7 +56,7 @@ class GetBackflushSts extends ExtendM3Transaction {
    * @return PRNO
    */
   String getProduct(int CONO, String FACI, String MFNO) {
-    logger.debug("Getting product number for CONO:${CONO}; FACI:${FACI}; MFNO:${MFNO}".toString())
+    logger.debug("Getting product number for CONO:${CONO}; FACI:${FACI}; MFNO:${MFNO}")
 
     String PRNO = null
     DBAction actionMWOHED = database.table("MWOHED").index("55").selection("VHPRNO").build()
@@ -63,13 +67,11 @@ class GetBackflushSts extends ExtendM3Transaction {
 
     int keys = 3
     int limit = 1
-    int records = actionMWOHED.readAll(containerMWOHED, keys, limit, { DBContainer c ->
+    actionMWOHED.readAll(containerMWOHED, keys, limit, { DBContainer c ->
       PRNO = c.getString("VHPRNO")
+      logger.debug("Getting product number is ${PRNO}")
     })
-    if (records == 0) {
-      mi.error("Order ${MFNO} was not found.")
-    }
-    logger.debug("Getting product number is ${PRNO}".toString())
+
     return PRNO
   }
 
@@ -154,7 +156,7 @@ class GetBackflushSts extends ExtendM3Transaction {
    * @return
    */
   boolean isPreventNegativeBackflush(int CONO, String FACI, String ITNO) {
-    logger.debug("Getting backflush setting for CONO:${CONO}; FACI:${FACI}; ITNO:${ITNO};".toString())
+    logger.debug("Getting backflush setting for CONO:${CONO}; FACI:${FACI}; ITNO:${ITNO};")
     String A130 = null
     DBAction actionCUGEX1 = database.table("CUGEX1").index("00").selection("F1A130").build()
     DBContainer containerCUGEX1 = actionCUGEX1.createContainer()
@@ -166,7 +168,10 @@ class GetBackflushSts extends ExtendM3Transaction {
     if (actionCUGEX1.read(containerCUGEX1)) {
       A130 = containerCUGEX1.getString("F1A130")
     }
-    logger.debug("Backflush setting is ${A130}".toString())
+    if (A130) {
+      A130 = A130.trim()
+    }
+    logger.debug("Backflush setting is ${A130}")
     return A130 == "2"
   }
 
@@ -180,7 +185,7 @@ class GetBackflushSts extends ExtendM3Transaction {
    * @return qtyToReport
    */
   double calculateQtyToReport(double CNQT, double WAPC, double RPQA, int DCCD) {
-    logger.debug("Calculating quantity to report with CNQT:${CNQT}; WAPC:${WAPC}; RPQA:${RPQA}; DCCD:${DCCD};".toString())
+    logger.debug("Calculating quantity to report with CNQT:${CNQT}; WAPC:${WAPC}; RPQA:${RPQA}; DCCD:${DCCD};")
     double qtyWithWaste = CNQT * (WAPC / 100 + 1)
     double toReport = RPQA * qtyWithWaste
     double toReportRounded = Math.ceil(toReport * (10**DCCD)) / (10**DCCD)
@@ -198,7 +203,7 @@ class GetBackflushSts extends ExtendM3Transaction {
    * @return qty
    */
   double getAvailableBackflushQty(int CONO, String WHLO, String ITNO, String WHSL) {
-    logger.debug("Getting available backflush quantity for CONO:${CONO}; WHLO:${WHLO}; ITNO:${ITNO}; WHSL:${WHSL};".toString())
+    logger.debug("Getting available backflush quantity for CONO:${CONO}; WHLO:${WHLO}; ITNO:${ITNO}; WHSL:${WHSL};")
     double available = 0
     ExpressionFactory exp = database.getExpressionFactory("MITLOC")
     exp = exp.eq("MLSTAS", "2") & exp.gt("MLSTQT", "0")  // balance ids must be status 2 - approved and positive
@@ -225,7 +230,7 @@ class GetBackflushSts extends ExtendM3Transaction {
       available = STQT - ALQT - PLQT
     })
 
-    logger.debug("Available backflush quantity is ${available}".toString())
+    logger.debug("Available backflush quantity is ${available}")
     return available
   }
 
