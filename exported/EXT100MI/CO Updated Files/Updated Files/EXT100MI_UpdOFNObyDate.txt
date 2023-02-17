@@ -1,0 +1,71 @@
+/**
+ * README
+ * This extension is used to update OOHEAD table.
+ * This is used to update TMS Orders Quotation Number in OOHEAD.
+ * 
+ * Name: EXT100MI.UpdOFNObyDate
+ * Description: To update OOHEAD table
+ * 
+ * Date	      Changed By            Description
+ * 20211002	  Girish Hosamani     To update a record in the OOHEAD table
+ *
+ */
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+public class UpdOFNObyDate extends ExtendM3Transaction {
+ 	private final MIAPI mi
+	private final DatabaseAPI database
+	private final ProgramAPI program
+	
+	//Primary key fields
+	private int iCONO
+  private String iORNO, iOFNO
+  
+  public UpdOFNObyDate(MIAPI mi, DatabaseAPI database, ProgramAPI program) {
+    this.mi = mi
+		this.database = database
+		this.program = program
+  }
+  
+  public void main() {
+    iCONO = mi.inData.get("CONO") == null || mi.inData.get("CONO") == 0 ? (Integer)program.LDAZD.CONO : mi.inData.get("CONO") as Integer
+    iORNO = mi.inData.get("ORNO") == null || mi.inData.get("ORNO").trim() == "?" ? "" : mi.inData.get("ORNO").trim()
+    iOFNO = mi.inData.get("OFNO") == null || mi.inData.get("OFNO").trim() == "?" ? "" : mi.inData.get("OFNO").trim()
+    
+		changeRecord()
+  }
+  /**
+	 * Update record in the OOHEAD table
+	 *
+	 */
+	private void changeRecord(){
+		DBAction dbAction = database.table("OOHEAD").index("00").selection().build()
+		DBContainer OOHEAD = dbAction.getContainer()
+
+		OOHEAD.set("OACONO", iCONO)
+		OOHEAD.set("OAORNO", iORNO)
+		// Update changed information
+		if (!dbAction.readLock(OOHEAD, updateCallBack)) {
+			mi.error("Customer order does not exist")
+			return
+		}
+	}
+	
+	/**
+	 * Closure for OOHEAD Update
+	 */
+		Closure<?> updateCallBack = { LockedResult lockedResult ->
+
+		if(iOFNO.trim() != "") {lockedResult.set("OAOFNO", iOFNO) }
+		
+		// Update changed information
+		lockedResult.set("OALMDT", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")).toInteger())
+		lockedResult.set("OACHNO", (lockedResult.getInt("OACHNO") + 1))
+		lockedResult.set("OACHID", program.getUser())
+		lockedResult.update()
+  
+  }
+}
