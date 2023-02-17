@@ -1,3 +1,16 @@
+/**
+ * README
+ * This utility supports common operations related to working with containers and
+ * appended suffixes required to support the current container managed 7 configuration.
+ *
+ * Name: ManageContainer
+ * Description: common container utility
+ * Date	      Changed By            Description
+ * 20230209	  JHAGLER               initial development
+ * 20230215	  JHAGLER               allow better support of other container number formats
+ * 20230217	  JHAGLER               changes requested from Infor
+ */
+
 class ManageContainer extends ExtendM3Utility {
 
   /**
