@@ -29,9 +29,26 @@ public class GetDiscountDet extends ExtendM3Transaction {
     int PONR = mi.inData.get("PONR") as int
 
     Map<String, String> orderHeader = getOrderHeader(CONO, ORNO)
+    if (!orderHeader) {
+      mi.error("Could not retrieve order header")
+      return
+    }
     Map<String, String> orderLine = getOrderLine(CONO, ORNO, PONR)
+    if (!orderLine) {
+      mi.error("Could not retrieve order line")
+      return
+    }
     Map<String, String> item = getItem(CONO, orderLine.get("&ITNO"))
+    if (!item) {
+      mi.error("Could not retrieve item")
+      return
+    }
     Map<String, String> customer = getCustomer(CONO, orderHeader.get("&CUNO"))
+    if (!customer) {
+      mi.error("Could not retrieve customer")
+      return
+    }
+
     Map<String, String> data = orderHeader + orderLine + item + customer as LinkedHashMap<String, String>
 
     logger.debug("Order line data: ${data}".toString())
@@ -128,8 +145,7 @@ public class GetDiscountDet extends ExtendM3Transaction {
       orderHeader.put("ORDT", containerOOHEAD.get("OAORDT").toString().trim())
       orderHeader.put("GRWE", containerOOHEAD.get("OAGRWE").toString().trim())
     } else {
-      mi.error("Order ${ORNO} not found".toString())
-      return
+      return null
     }
 
     return orderHeader
@@ -159,8 +175,7 @@ public class GetDiscountDet extends ExtendM3Transaction {
       orderHeader.put("DWDT", container.get("OBDWDT").toString().trim())
       orderHeader.put("ORQA", container.get("OBORQA").toString().trim())
     } else {
-      mi.error("Order line ${PONR} not found".toString())
-      return
+      return null
     }
 
     return orderHeader
@@ -184,8 +199,7 @@ public class GetDiscountDet extends ExtendM3Transaction {
     if (action.read(container)) {
       item.put("MMITCL", container.get("MMITCL").toString().trim())
     } else {
-      mi.error("Item ${ITNO} not found".toString())
-      return
+      return null
     }
 
     return item
@@ -209,8 +223,7 @@ public class GetDiscountDet extends ExtendM3Transaction {
       customer.put("OKCFC1", container.get("OKCFC1").toString().trim())
       customer.put("OKCFC3", container.get("OKCFC3").toString().trim())
     } else {
-      mi.error("Customer ${CUNO} not found".toString())
-      return
+      return null
     }
 
     return customer
