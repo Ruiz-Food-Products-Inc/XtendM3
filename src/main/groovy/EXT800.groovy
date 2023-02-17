@@ -75,7 +75,7 @@ class EXT800 extends ExtendM3Batch {
   void processExpiredDiscountScaleLines(String DISY, String DIPO) {
 
     ExpressionFactory exp = database.getExpressionFactory("OGDMTX")
-    exp = exp.ge("DXFVDT", "20220101") & exp.gt("DXDIAM", "0")
+    exp = exp.gt("DXDIAM", "0")
 
     DBAction actionOGDMTX = database.table("OGDMTX").index("00").matching(exp).build()
     DBContainer containerOGDMTX = actionOGDMTX.createContainer()
@@ -93,12 +93,10 @@ class EXT800 extends ExtendM3Batch {
       String OBV4 = c.getString("DXOBV4")
       String OBV5 = c.getString("DXOBV5")
 
-      logger.trace("Processing FVDT=${FVDT}; PREX=${PREX}; OBV1=${OBV1}; OBV2=${OBV2}; OBV3=${OBV3}; OBV4=${OBV4}; OBV5=${OBV5}")
-
       List<String> extValues = getExtensionValues(DISY, DIPO, FVDT, PREX, OBV1, OBV2, OBV3, OBV4, OBV5)
       if (extValues == null) {
         // no extension values retrieved
-        logger.trace("No extension values found.")
+        logger.debug("No extension values found.")
         return
       }
       String DAT1 = extValues.get(6)
@@ -108,15 +106,15 @@ class EXT800 extends ExtendM3Batch {
       String expDate = DAT1
       if (!expDate || expDate.isEmpty() || expDate == "0") {
         // no valid expiration date found for this scale line
-        logger.trace("No expiration date found.  ${expDate}")
+        logger.debug("No expiration date found.  ${expDate}")
         return
       }
       String expDatePlus1 = addDay(expDate, 1)
 
-      logger.trace("Scale line expiration date is ${expDate}")
+      logger.debug("Scale line expiration date is ${expDate}")
 
       if (!scaleLineExists(DISY, DIPO, expDatePlus1, PREX, OBV1, OBV2, OBV3, OBV4, OBV5)) {
-        logger.trace("No scale line found on ${expDatePlus1}, adding zero value scale line")
+        logger.debug("No scale line found on ${expDatePlus1}, adding zero value scale line")
         double LIMT = 0
         double DIAM = 0
         double DISP = 0
@@ -250,11 +248,11 @@ class EXT800 extends ExtendM3Batch {
       "DIAM": DIAM.toString(),
       "DISP": DISP.toString(),]
 
-    logger.trace("Calling OIS800MI/AddScaleLine with ${params}".toString())
+    logger.debug("Calling OIS800MI/AddScaleLine with ${params}".toString())
 
     miCaller.call("OIS800MI", "AddScaleLine", params, { Map<String, ?> resp ->
       if (resp.error) {
-        logger.trace("AddScaleLine errored: " + resp)
+        logger.debug("AddScaleLine errored: " + resp)
       }
     })
   }
@@ -266,10 +264,8 @@ class EXT800 extends ExtendM3Batch {
    * @param validFromDates
    */
   void processUnexpiredDiscountScaleLines(String DISY, String DIPO, LinkedHashSet<String> validFromDates) {
-    ExpressionFactory exp = database.getExpressionFactory("OGDMTX")
-    exp = exp.ge("DXFVDT", "20220101")  // lower limit date to process records for
 
-    DBAction actionOGDMTX = database.table("OGDMTX").matching(exp).index("00")
+    DBAction actionOGDMTX = database.table("OGDMTX").index("00")
       .selection("DXLIMT", "DXDIAM", "DXDISP").build()
     DBContainer containerOGDMTX = actionOGDMTX.createContainer()
     containerOGDMTX.setInt("DXCONO", CONO)
@@ -286,11 +282,11 @@ class EXT800 extends ExtendM3Batch {
       String OBV4 = c.getString("DXOBV4")
       String OBV5 = c.getString("DXOBV5")
 
-      logger.trace("Processing FVDT=${FVDT}; PREX=${PREX}; OBV1=${OBV1}; OBV2=${OBV2}; OBV3=${OBV3}; OBV4=${OBV4}; OBV5=${OBV5}")
+      logger.debug("Processing FVDT=${FVDT}; PREX=${PREX}; OBV1=${OBV1}; OBV2=${OBV2}; OBV3=${OBV3}; OBV4=${OBV4}; OBV5=${OBV5}")
 
       List<String> extValues = getExtensionValues(DISY, DIPO, FVDT, PREX, OBV1, OBV2, OBV3, OBV4, OBV5)
       if (extValues == null) {
-        logger.trace("No extension values found")
+        logger.debug("No extension values found")
         return
       }
       String A030 = extValues.get(0)
@@ -303,14 +299,14 @@ class EXT800 extends ExtendM3Batch {
 
       String expDate = DAT1
       if (!expDate || expDate.isEmpty() || expDate == "0") {
-        logger.trace("No valid expiration date found ${expDate}".toString())
+        logger.debug("No valid expiration date found ${expDate}".toString())
         return
       }
 
       for (String validFromDate in validFromDates.iterator()) {
         // filter for dates that should be valid for this scale line
         if (validFromDate >= FVDT && validFromDate <= expDate) {
-          logger.trace("Valid from date ${validFromDate} is within range ${FVDT} to ${expDate}".toString())
+          logger.debug("Valid from date ${validFromDate} is within range ${FVDT} to ${expDate}".toString())
 
           if (!scaleLineExists(DISY, DIPO, validFromDate, PREX, OBV1, OBV2, OBV3, OBV4, OBV5)) {
             double LIMT = c.getDouble("DXLIMT")
@@ -374,20 +370,20 @@ class EXT800 extends ExtendM3Batch {
                   "A530": A530]
 
 
-    logger.trace("Calling CUSEXTMI/AddFieldValue: ${keys + values}".toString())
+    logger.debug("Calling CUSEXTMI/AddFieldValue: ${keys + values}".toString())
     miCaller.call("CUSEXTMI", "AddFieldValue", keys + values, { Map<String, ?> resp ->
       if (resp.error) {
-        logger.trace("Error calling CUSEXTMI/AddFieldValue: ${resp}".toString())
+        logger.debug("Error calling CUSEXTMI/AddFieldValue: ${resp}".toString())
       }
     })
 
 
     def valuesEx = ["DAT1": DAT1.toString()]
 
-    logger.trace("Calling CUSEXTMI/ChgFieldValueEx: ${keys + valuesEx}".toString())
+    logger.debug("Calling CUSEXTMI/ChgFieldValueEx: ${keys + valuesEx}".toString())
     miCaller.call("CUSEXTMI", "ChgFieldValueEx", keys + valuesEx, { Map<String, ?> resp ->
       if (resp.error) {
-        logger.trace("Error calling CUSEXTMI/ChgFieldValueEx: ${resp}".toString())
+        logger.debug("Error calling CUSEXTMI/ChgFieldValueEx: ${resp}".toString())
       }
     })
   }
