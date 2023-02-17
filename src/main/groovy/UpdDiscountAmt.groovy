@@ -69,11 +69,6 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
       for(def detail in details) {
 
         logger.debug("Discount details found ${detail}")
-        // only modify discount scale base 62's - gross weight
-        String scaleBase = detail.get("SGGB").toString()
-        if (scaleBase != '62') {
-          continue
-        }
 
         int DIPO = detail.get("DIPO") as int
         double retrievedAmount = detail.get("DIAM") as double
