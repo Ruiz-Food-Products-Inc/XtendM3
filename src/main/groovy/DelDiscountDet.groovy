@@ -31,7 +31,7 @@ class DelDiscountDet extends ExtendM3Transaction {
     String ORNO = mi.inData.get("ORNO").toString()
     int PONR = mi.inData.get("PONR") as int
 
-    logger.error("Deleting extension table values for CONO:${CONO}; ORNO:${ORNO}; PONR;${PONR}".toString())
+    logger.debug("Deleting extension table values for CONO:${CONO}; ORNO:${ORNO}; PONR;${PONR}".toString())
 
     DBAction actionCUGEX1 = database.table("CUGEX1").index("00")
       .selection("F1FILE", "F1PK01","F1PK02","F1PK03","F1PK04","F1PK05","F1PK06","F1PK07","F1PK08").build()
@@ -55,10 +55,10 @@ class DelDiscountDet extends ExtendM3Transaction {
         "PK08": c.getString("F1PK08")
       ]
 
-      logger.error("CUSEXTMI/DelFieldValue params: ${params}".toString())
+      logger.debug("CUSEXTMI/DelFieldValue params: ${params}".toString())
       miCaller.call("CUSEXTMI", "DelFieldValue", params, {Map<String,?> resp ->
         if (resp.error) {
-          logger.error("CUSEXTMI/DelFieldValue error: ${resp}".toString())
+          logger.debug("CUSEXTMI/DelFieldValue error: ${resp}".toString())
         }
       })
 
