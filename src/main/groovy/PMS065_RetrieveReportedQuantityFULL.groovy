@@ -15,7 +15,7 @@
  * 20230207	  JHAGLER               initial development
  */
 
-class PMS065_retrieveReportedQuantityFULL extends ExtendM3Trigger {
+class PMS065_RetrieveReportedQuantityFULL extends ExtendM3Trigger {
 
   private final MethodAPI method
   private final DatabaseAPI database
@@ -24,7 +24,7 @@ class PMS065_retrieveReportedQuantityFULL extends ExtendM3Trigger {
 
   private int CONO
 
-  PMS065_retrieveReportedQuantityFULL(MethodAPI method, DatabaseAPI database, MICallerAPI miCaller, LoggerAPI logger) {
+  PMS065_RetrieveReportedQuantityFULL(MethodAPI method, DatabaseAPI database, MICallerAPI miCaller, LoggerAPI logger) {
     this.method = method
     this.database = database
     this.miCaller = miCaller
@@ -87,7 +87,7 @@ class PMS065_retrieveReportedQuantityFULL extends ExtendM3Trigger {
     def params = [
       "WHLO": warehouse
     ]
-    miCaller.call("MMS005MI", "GetWhs", params, {Map<String, ?> resp ->
+    miCaller.call("MMS005MI", "GetWarehouse", params, {Map<String, ?> resp ->
       facility = resp.get("FACI").toString()
     })
     logger.debug("Facility retrieved ${facility}")
@@ -119,9 +119,9 @@ class PMS065_retrieveReportedQuantityFULL extends ExtendM3Trigger {
     miCaller.call("CUSEXTMI", "GetFieldValue", params, {Map<String, ?> resp ->
       backflushSetting = resp.get("A130").toString()
     })
-    logger.debug("Backflush setting found ${backflushSetting}")
+    logger.debug("Backflush setting found '${backflushSetting}'")
 
-    return backflushSetting
+    return backflushSetting.trim()
   }
 
   /**
