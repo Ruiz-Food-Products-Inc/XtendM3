@@ -45,9 +45,9 @@ public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
      return
     }
 
-    int records = getCountOfBalanceIds(CAMU)
-    logger.debug("Found ${records} balance ids with container ${CAMU}")
-    if (records > 1) {
+    boolean hasMultiple = hasMultipleBalanceIds(CAMU)
+    logger.debug("Container ${CAMU} has multiple balance ids = ${hasMultiple}")
+    if (hasMultiple) {
       // this container exists in multiple locations
       // receive this into a newly sequenced container
       String nextCAMU = utility.call("ManageContainer", "GetNextContainerNumber",
@@ -66,16 +66,17 @@ public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
   /**
    * Get the count of records with the same container number
    * @param CAMU
-   * @return count of records
+   * @return boolean
    */
-  int getCountOfBalanceIds(String CAMU) {
+  private boolean hasMultipleBalanceIds(String CAMU) {
     DBAction actionMITLOC = database.table("MITLOC").index("99").build()
     DBContainer containerMITLOC = actionMITLOC.createContainer()
     containerMITLOC.setInt("MLCONO", CONO)
     containerMITLOC.setString("MLCAMU", CAMU)
 
     int keys = 2
-    int records = actionMITLOC.readAll(containerMITLOC, keys, {})
-    return records
+    int limit = 2  // set limit to 2, only needing to see if there is MORE than 1
+    int records = actionMITLOC.readAll(containerMITLOC, keys, limit, {})
+    return records > 1
   }
 }
