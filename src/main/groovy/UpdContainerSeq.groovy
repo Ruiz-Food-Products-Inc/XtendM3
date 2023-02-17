@@ -25,7 +25,6 @@ public class UpdContainerSeq extends ExtendM3Transaction {
 
   public void main() {
 
-
     int CONO = mi.in.get('CONO') as int
     String WHLO = mi.in.get('WHLO').toString()
     String WHSL = mi.in.get('WHSL').toString()
@@ -48,11 +47,12 @@ public class UpdContainerSeq extends ExtendM3Transaction {
     containerMITLOC.set("MLCAMU", CAMU)
 
     int keys = 2
-    int records = actionMITLOC.readAll(containerMITLOC, keys, {})
+    int limit = 2  // set limit to 2, only needing to see if there are more than 1 records
+    int records = actionMITLOC.readAll(containerMITLOC, keys, limit, {})
 
-    logger.debug("Found ${records} balance ids for container ${CAMU}")
 
     if (records > 1) {
+      logger.debug("Found multiple balance ids for container ${CAMU}")
       // container is not unique
       // add container number to this transaction to make it unique
       String nextCAMU = utility.call("ManageContainer", "GetNextContainerNumber", database, CONO, CAMU)
@@ -70,11 +70,18 @@ public class UpdContainerSeq extends ExtendM3Transaction {
         "TWSL": WHSL,
         "TOCA": nextCAMU
       ]
+
+      String errorMessage = null
       miCaller.call("MMS850MI", "AddMove", params, { Map<String, ?> resp ->
         if (resp.error) {
-          mi.error(resp.get("errorMessage").toString())
+          errorMessage = resp.get("errorMessage").toString()
         }
       })
+
+      if (errorMessage) {
+        mi.error(errorMessage)
+        return
+      }
     }
 
   }
