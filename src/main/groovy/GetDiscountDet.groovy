@@ -87,19 +87,7 @@ public class GetDiscountDet extends ExtendM3Transaction {
         mi.outData.put("SGGB", scaleBase)
         mi.outData.put("TX15", details.get("TX15").toString())
 
-        double scaleAmount = 0
-        if (scaleBase == '62') {
-          double orderGrossWeight = orderHeader.get("GRWE") as double
-          if (orderGrossWeight) {
-            scaleAmount = orderGrossWeight
-          }
-        }
-        if (scaleBase == '22') {
-          double lineOrderQty = orderLine.get("ORQA") as double
-          if (lineOrderQty) {
-            scaleAmount = lineOrderQty
-          }
-        }
+        double scaleAmount = getScaleAmount(scaleBase, orderHeader, orderLine)
         mi.outData.put("SBQT", scaleAmount.toString())
 
         Map<String, Double> scale = getDiscountScaleLineAmount(DISY, DIPO, FVDT, PREX, OBV1, OBV2, OBV3, OBV4, OBV5, scaleAmount)
@@ -118,7 +106,6 @@ public class GetDiscountDet extends ExtendM3Transaction {
 
         mi.write()
       }
-
 
 
     }
@@ -227,6 +214,56 @@ public class GetDiscountDet extends ExtendM3Transaction {
     }
 
     return customer
+  }
+
+  double getScaleAmount(String scaleBase, Map<String, String> orderHeader, Map<String, String> orderLine) {
+    double scaleAmount = 0
+    if (scaleBase == '62') {
+      double selectedGrossWeight = 0
+      String OAWCON = orderHeader.get("OAWCON").toString().trim()
+      if (OAWCON == '') {
+        double orderGrossWeight = orderHeader.get("GRWE") as double
+        if (orderGrossWeight) {
+          selectedGrossWeight = orderGrossWeight
+        }
+      } else {
+        selectedGrossWeight = getOverrideGrossWeight(OAWCON)
+      }
+
+      if (selectedGrossWeight) {
+        scaleAmount = selectedGrossWeight
+      }
+    } else if (scaleBase == '22') {
+      double lineOrderQty = orderLine.get("ORQA") as double
+      if (lineOrderQty) {
+        scaleAmount = lineOrderQty
+      }
+    }
+    return scaleAmount
+  }
+
+  /**
+   * Converts a contact method to the correct overriding order gross weight
+   * @param contactMethod
+   * @return overrideGrossWeight
+   */
+  double getOverrideGrossWeight(String contactMethod) {
+    double overrideGrossWeight = 0
+    LinkedHashMap<String, BigDecimal> weights = [
+      "050": 5000.0,
+      "075": 7500.0,
+      "150": 15000.0,
+      "390": 39000.0,
+      "400": 40000.0,
+      "FTL": 40000.0,
+      "HTL": 39999.0,
+      "LTL": 19999.0
+    ]
+    BigDecimal weight = weights.get(contactMethod)
+    if (weight) {
+      overrideGrossWeight = weight.toDouble() as double
+    }
+    return overrideGrossWeight
   }
 
   /**
@@ -535,7 +572,7 @@ public class GetDiscountDet extends ExtendM3Transaction {
   }
 
   private Map<String, Double> getDiscountScaleLineAmount(String DISY, int DIPO, int FVDT, int PREX,
-                       String OBV1, String OBV2, String OBV3, String OBV4, String OBV5, double LIMT) {
+                                                         String OBV1, String OBV2, String OBV3, String OBV4, String OBV5, double LIMT) {
     double amount = 0
     double matchedLimit = 0
     def params = [
@@ -549,7 +586,7 @@ public class GetDiscountDet extends ExtendM3Transaction {
       "OBV4": OBV4,
       "OBV5": OBV5
     ]
-    miCaller.call("OIS800MI", "LstScaleLine", params, {Map<String, ?> resp ->
+    miCaller.call("OIS800MI", "LstScaleLine", params, { Map<String, ?> resp ->
       logger.debug("OIS800MI.LstScaleLine: ${resp}")
       if (!resp.error) {
         double scaleLimit = resp.get("LIMT") as double
