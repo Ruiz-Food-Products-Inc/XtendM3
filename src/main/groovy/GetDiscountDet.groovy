@@ -6,6 +6,7 @@
  * Description: Get discount details
  * Date	      Changed By            Description
  * 20230217	  JHAGLER               initial development
+ * 20230223	  JHAGLER               add feature to override order total gross weight from contact method (OAWCON)
  */
 public class GetDiscountDet extends ExtendM3Transaction {
   private final MIAPI mi
