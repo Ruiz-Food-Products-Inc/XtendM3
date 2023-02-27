@@ -10,7 +10,7 @@
  * Description: Report issue PRE trigger
  * Date	      Changed By            Description
  * 20230209	  JHAGLER               initial development
- * 20230225	  JHAGLER               improve error handling
+ * 20230227	  JHAGLER               improve error handling
  */
 
 
@@ -89,7 +89,7 @@ class PMS060MI_RptIssuePRE extends ExtendM3Trigger {
 
     Map<String, String> selectedBalanceId = getSelectedBalanceId(WHLO, ITNO, WHSL, CAMU)
     if (selectedBalanceId == null) {
-      transaction.abortTransaction("CAMU", "WLOCA03", "location=${WHSL} and container=${CAMU}")  // Balance identity &1 does not exist
+      transaction.abortTransaction("CAMU", "WLOCA03", "${WHSL} / ${CAMU}")  // Balance identity &1 does not exist
       return
     }
 
@@ -301,6 +301,15 @@ class PMS060MI_RptIssuePRE extends ExtendM3Trigger {
     return true
   }
 
+
+  /**
+   * Calls utility to retrieve a selected matching container
+   * @param WHLO
+   * @param ITNO
+   * @param WHSL
+   * @param CAMU
+   * @return
+   */
   private Map<String, String> getSelectedBalanceId(String WHLO, String ITNO, String WHSL, String CAMU) {
 
     Map<String, String> selectedBalanceId = null
