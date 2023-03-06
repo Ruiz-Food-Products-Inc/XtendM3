@@ -7,6 +7,7 @@
  * Description: Get backflush status
  * Date	      Changed By            Description
  * 20230209	  JHAGLER               initial development
+ * 20230302   JHAGLER               check quantity in location
  */
 
 class GetBackflushSts extends ExtendM3Transaction {
@@ -219,15 +220,14 @@ class GetBackflushSts extends ExtendM3Transaction {
     containerMITLOC.setString("MLWHSL", WHSL)
 
     int keys = 4
-    int limit = 1
-    actionMITLOC.readAll(containerMITLOC, keys, limit, { DBContainer c ->
+    actionMITLOC.readAll(containerMITLOC, keys, { DBContainer c ->
       String BANO = c.getString("MLBANO")
       String CAMU = c.getString("MLCAMU")
       double STQT = c.getDouble("MLSTQT")
       double ALQT = c.getDouble("MLALQT")
       double PLQT = c.getDouble("MLPLQT")
       logger.debug("Selected balance id for backflush is WHLO:${WHLO}; ITNO:${ITNO}; WHSL:${WHSL}; BANO:${BANO}; CAMU:${CAMU}; STQT:${STQT}; ALQT:${ALQT}; PLQT:${PLQT};".toString())
-      available = STQT - ALQT - PLQT
+      available += STQT - ALQT - PLQT
     })
 
     logger.debug("Available backflush quantity is ${available}")
