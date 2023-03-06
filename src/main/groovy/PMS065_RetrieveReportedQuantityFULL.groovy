@@ -13,6 +13,7 @@
  * Description: Adjust backflushed quantity
  * Date	      Changed By            Description
  * 20230207	  JHAGLER               initial development
+ * 20230302   JHAGLER               check quantity in location
  */
 
 class PMS065_RetrieveReportedQuantityFULL extends ExtendM3Trigger {
@@ -148,14 +149,15 @@ class PMS065_RetrieveReportedQuantityFULL extends ExtendM3Trigger {
     containerMITLOC.setString("MLWHSL", location)
 
     int keys = 4
-    int limit = 1
-    actionMITLOC.readAll(containerMITLOC, keys, limit, { DBContainer c ->
+    actionMITLOC.readAll(containerMITLOC, keys, { DBContainer c ->
       double onHand = c.getDouble("MLSTQT")
       double allocated = c.getDouble("MLALQT")
       double pickList = c.getDouble("MLPLQT")
-      availableQty = onHand - allocated - pickList
+      availableQty += onHand - allocated - pickList
       logger.debug("Quantity found STQT:${onHand}; ALQT:${allocated}; PLQT:${pickList}; availableQty:${availableQty};".toString())
     })
+
+    logger.debug("Total quantity available is ${availableQty}")
 
     return availableQty
 
