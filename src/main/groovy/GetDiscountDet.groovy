@@ -10,6 +10,7 @@ import java.time.LocalDate
  * Date	      Changed By            Description
  * 20230217	  JHAGLER               initial development
  * 20230223	  JHAGLER               add feature to override order total gross weight from contact method (OAWCON)
+ * 20230517	  JHAGLER               support percentage discounts and discount expiration
  */
 public class GetDiscountDet extends ExtendM3Transaction {
   private final MIAPI mi

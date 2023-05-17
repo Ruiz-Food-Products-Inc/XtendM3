@@ -7,6 +7,7 @@
  * Description: Update discount details
  * Date	      Changed By            Description
  * 20230217	  JHAGLER               initial development
+ * 20230517	  JHAGLER               support percentage discounts
  */
 
 public class UpdDiscountAmt extends ExtendM3Transaction {
