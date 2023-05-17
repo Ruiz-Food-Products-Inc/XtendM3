@@ -17,7 +17,7 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
 
   private int CONO
 
-  public UpdDiscountAmt(MIAPI mi,ProgramAPI program, MICallerAPI miCaller,  LoggerAPI logger) {
+  public UpdDiscountAmt(MIAPI mi, ProgramAPI program, MICallerAPI miCaller, LoggerAPI logger) {
     this.mi = mi
     this.program = program
     this.miCaller = miCaller
@@ -62,63 +62,37 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
       Map<String, String> priceUpdateParams = [:]
 
       def line = getOrderLine(ORNO, lineNumber)
-      logger.debug("Order line details found ${line}")
+      def line2 = getOrderLine(ORNO, lineNumber)
+      logger.debug("Order line details found ${line} ${line2}")
 
       def details = getDiscountDetails(ORNO, lineNumber)
 
-      for(def detail in details) {
+      // loop over each discount number
+      for (int DIPO = 1; DIPO <= 6; DIPO++) {
+        logger.debug("Checking line ${PONR} discount ${DIPO}")
+        double currentAmount = line2.get("DIA" + DIPO) as double
+        double currentPercent = line2.get("DIA" + DIPO) as double
+        double retrievedAmount = 0
+        double retrievedPercent = 0
 
-        logger.debug("Discount details found ${detail}")
-
-        int DIPO = detail.get("DIPO") as int
-        double retrievedAmount = detail.get("DIAM") as double
-        // for the call to OIS100MI.UpdPriceInfo, if setting value to zero, must pass a "?"
-        String retrievedAmountStr = "?"
-        if (retrievedAmount != 0) {
-          retrievedAmountStr = retrievedAmount.toString()
-        }
-
-        if (DIPO == 1) {
-          double currentAmount = line.get("DIA1") as double
-          if (retrievedAmount != currentAmount) {
-            priceUpdateParams.put("DIA1", retrievedAmountStr)
+        for (def detail in details) {
+          if (DIPO == detail.get("DIPO") as int) {
+            logger.debug("Discount details found ${detail}")
+            retrievedAmount = detail.get("DIAM") as double
+            retrievedPercent = detail.get("DISP") as double
+            break;
           }
         }
 
-        if (DIPO == 2) {
-          double currentAmount = line.get("DIA2") as double
-          if (retrievedAmount != currentAmount) {
-            priceUpdateParams.put("DIA2", retrievedAmountStr)
-          }
+        logger.debug("Current amount=${currentAmount} and current percent=${currentPercent}")
+        logger.debug("Retrieved amount=${retrievedAmount} and retrieved percent=${retrievedPercent}")
+
+        if (currentAmount != retrievedAmount || currentPercent != retrievedPercent) {
+          priceUpdateParams.put("DIA" + DIPO, retrievedAmount.toString())
+          priceUpdateParams.put("DIP" + DIPO, retrievedPercent.toString())
+          priceUpdateParams.put("DIC" + DIPO, "8")  // manually changed
         }
 
-        if (DIPO == 3) {
-          double currentAmount = line.get("DIA3") as double
-          if (retrievedAmount != currentAmount) {
-            priceUpdateParams.put("DIA3", retrievedAmountStr)
-          }
-        }
-
-        if (DIPO == 4) {
-          double currentAmount = line.get("DIA4") as double
-          if (retrievedAmount != currentAmount) {
-            priceUpdateParams.put("DIA4", retrievedAmountStr)
-          }
-        }
-
-        if (DIPO == 5) {
-          double currentAmount = line.get("DIA5") as double
-          if (retrievedAmount != currentAmount) {
-            priceUpdateParams.put("DIA5", retrievedAmountStr)
-          }
-        }
-
-        if (DIPO == 6) {
-          double currentAmount = line.get("DIA6") as double
-          if (retrievedAmount != currentAmount) {
-            priceUpdateParams.put("DIA6", retrievedAmountStr)
-          }
-        }
       }
 
       if (priceUpdateParams.keySet().size() > 0) {
@@ -140,7 +114,7 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
     def params = [
       "ORNO": ORNO
     ]
-    miCaller.call("OIS100MI", "LstLine", params, {Map<String, ?> resp ->
+    miCaller.call("OIS100MI", "LstLine", params, { Map<String, ?> resp ->
       int PONR = resp.get("PONR") as int
       orderLineNumbers.add(PONR.toString())
     })
@@ -160,7 +134,25 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
       "ORNO": ORNO,
       "PONR": PONR,
     ]
-    miCaller.call("OIS100MI", "GetLine2", params, {Map<String, ?> resp ->
+    miCaller.call("OIS100MI", "GetLine", params, { Map<String, ?> resp ->
+      orderLine = resp
+    })
+    return orderLine
+  }
+
+  /**
+   * Get the order line details using OIS100MI.GetLine2
+   * @param ORNO
+   * @param PONR
+   * @return
+   */
+  Map<String, ?> getOrderLine2(String ORNO, String PONR) {
+    Map<String, ?> orderLine = null
+    def params = [
+      "ORNO": ORNO,
+      "PONR": PONR,
+    ]
+    miCaller.call("OIS100MI", "GetLine2", params, { Map<String, ?> resp ->
       orderLine = resp
     })
     return orderLine
@@ -179,7 +171,7 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
       "ORNO": ORNO,
       "PONR": PONR
     ]
-    miCaller.call("EXT100MI", "GetDiscountDet",  params, {Map<String, ?> resp ->
+    miCaller.call("EXT100MI", "GetDiscountDet", params, { Map<String, ?> resp ->
       details.add(resp)
     })
     return details
@@ -196,15 +188,16 @@ public class UpdDiscountAmt extends ExtendM3Transaction {
     params.put("ORNO", ORNO)
     params.put("PONR", PONR)
 
-    miCaller.call("OIS100MI", "UpdPriceInfo", params, {Map<String, ?> resp ->
+
+    logger.debug("Calling OIS100MI/UpdPriceInfo with ${params}")
+    miCaller.call("OIS100MI", "UpdPriceInfo", params, { Map<String, ?> resp ->
       if (resp.error) {
-        mi.error(resp.error.toString())
+        logger.debug("error calling OIS100MI/UpdPriceInfo: ${resp.errorMessage}")
+        mi.error(resp.errorMessage.toString())
         return
       }
     })
   }
-
-
 
 
 }

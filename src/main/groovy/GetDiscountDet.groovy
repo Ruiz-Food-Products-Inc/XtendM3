@@ -1,3 +1,6 @@
+import java.text.SimpleDateFormat
+import java.time.LocalDate
+
 /**
  * README
  * This transaction will get all discount related details for an order line
@@ -61,7 +64,7 @@ public class GetDiscountDet extends ExtendM3Transaction {
     // loop for all 6 discount numbers
     for (int DIPO = 1; DIPO <= 6; DIPO++) {
       LinkedHashMap<String, ?> details = getDiscountDetails(CONO, DISY, DIPO, ORDT, data) as LinkedHashMap<String, ?>
-      logger.debug("Discount details: ${details}".toString())
+      logger.debug("Discount ${DIPO} details: ${details}".toString())
       if (details) {
 
         int FVDT = details.get("FVDT") as int
@@ -92,8 +95,11 @@ public class GetDiscountDet extends ExtendM3Transaction {
         mi.outData.put("SBQT", scaleAmount.toString())
 
         Map<String, Double> scale = getDiscountScaleLineAmount(DISY, DIPO, FVDT, PREX, OBV1, OBV2, OBV3, OBV4, OBV5, scaleAmount)
+
+        logger.debug("scale det: ${scale}")
         mi.outData.put("LIMT", scale.get("LIMT").toString())
         mi.outData.put("DIAM", scale.get("DIAM").toString())
+        mi.outData.put("DISP", scale.get("DISP").toString())
 
         if (details.get("A030")) {
           mi.outData.put("A030", details.get("A030").toString())
@@ -105,9 +111,24 @@ public class GetDiscountDet extends ExtendM3Transaction {
           mi.outData.put("DAT1", details.get("DAT1").toString())
         }
 
-        mi.write()
-      }
+        boolean expired = false
 
+        if (details.get("DAT1")) {
+          mi.outData.put("DAT1", details.get("DAT1").toString())
+
+          // check if discount is expired
+          int expirationDate = details.get("DAT1") as int
+          if (ORDT > expirationDate) {
+            // discount is expired, return zero amount and percent
+            expired = true
+          }
+        }
+
+        if (!expired) {
+          mi.write()
+        }
+
+      }
 
     }
   }
@@ -217,6 +238,13 @@ public class GetDiscountDet extends ExtendM3Transaction {
     return customer
   }
 
+  /**
+   * Get scale amount
+   * @param scaleBase
+   * @param orderHeader
+   * @param orderLine
+   * @return
+   */
   double getScaleAmount(String scaleBase, Map<String, String> orderHeader, Map<String, String> orderLine) {
     double scaleAmount = 0
     if (scaleBase == '62') {
@@ -575,6 +603,7 @@ public class GetDiscountDet extends ExtendM3Transaction {
   private Map<String, Double> getDiscountScaleLineAmount(String DISY, int DIPO, int FVDT, int PREX,
                                                          String OBV1, String OBV2, String OBV3, String OBV4, String OBV5, double LIMT) {
     double amount = 0
+    double percent = 0
     double matchedLimit = 0
     def params = [
       "DISY": DISY,
@@ -593,12 +622,13 @@ public class GetDiscountDet extends ExtendM3Transaction {
         double scaleLimit = resp.get("LIMT") as double
         if (LIMT >= scaleLimit) {
           amount = resp.get("DIAM") as double
+          percent = resp.get("DISP") as double
           matchedLimit = scaleLimit
         }
       }
     })
 
-    return ["LIMT": matchedLimit, "DIAM": amount]
+    return ["LIMT": matchedLimit, "DIAM": amount, "DISP": percent]
   }
 
 }
