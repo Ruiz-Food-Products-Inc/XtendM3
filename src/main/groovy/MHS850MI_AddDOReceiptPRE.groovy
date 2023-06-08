@@ -7,6 +7,8 @@
  * Description: Splits
  * Date	      Changed By            Description
  * 20230214	  JHAGLER               initial development
+ * 20230607   JHAGLER               only split containers if receiving into COMG=7,
+ *                                  if COMG=1, remove suffix
  */
 
 public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
@@ -17,6 +19,7 @@ public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
   private final UtilityAPI utility
   private final TransactionAPI transaction
   private final DatabaseAPI database
+  private final MICallerAPI miCaller
 
   private int CONO
 
@@ -24,12 +27,14 @@ public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
                                   ProgramAPI program,
                                   UtilityAPI utility,
                                   TransactionAPI transaction,
-                                  DatabaseAPI database) {
+                                  DatabaseAPI database,
+                                  MICallerAPI miCaller) {
     this.logger = logger
     this.program = program
     this.utility = utility
     this.transaction = transaction
     this.database = database
+    this.miCaller = miCaller
 
   }
 
@@ -38,6 +43,8 @@ public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
     String strCONO = transaction.parameters.get("CONO").toString()
     CONO = strCONO == null || strCONO.isEmpty() ? program.LDAZD.get("CONO") as int : strCONO as int
 
+    String WHLO = transaction.parameters.get("WHLO").toString()
+    String ITNO = transaction.parameters.get("ITNO").toString()
     String CAMU = transaction.parameters.get("CAMU").toString()
 
     if (!CAMU) {
@@ -45,13 +52,24 @@ public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
      return
     }
 
+    String COMG = getContainerManagementCode(WHLO, ITNO)
+    if (COMG == "1") {
+      // remove any container suffixes
+      logger.debug("Container management is ${COMG} in warehouse ${WHLO}")
+      if (CAMU.contains("_")) {
+        String baseCAMU = CAMU.split("_")[0]
+        logger.debug("Container ${CAMU} has a suffix, receiving ast ${baseCAMU}")
+        transaction.parameters.put("TOCA", baseCAMU)
+        return
+      }
+    }
+
     boolean hasMultiple = hasMultipleBalanceIds(CAMU)
     logger.debug("Container ${CAMU} has multiple balance ids = ${hasMultiple}")
     if (hasMultiple) {
       // this container exists in multiple locations
       // receive this into a newly sequenced container
-      String nextCAMU = utility.call("ManageContainer", "GetNextContainerNumber",
-        database, CONO, CAMU)
+      String nextCAMU = getNextContainerNumber(CAMU)
       if (nextCAMU) {
         logger.debug("Container will be received as ${nextCAMU}")
         transaction.parameters.put("TOCA", nextCAMU)
@@ -61,6 +79,44 @@ public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
 
     }
 
+  }
+
+  /**
+   * Get next generated container number
+   * @param WHLO
+   * @return containerNumber
+   */
+  String getContainerManagementCode(String WHLO, String ITNO) {
+    String containerManagementCode = null
+    def params = [
+      "WHLO": WHLO,
+      "ITNO": ITNO
+    ]
+
+    miCaller.call("MMS200MI", "GetItmWhsBasic", params, {Map<String, ?> resp ->
+      containerManagementCode = resp.get("COMG").toString()
+    })
+
+    return containerManagementCode
+  }
+
+  /**
+   * Call utility to get next available container number
+   * @param CAMU
+   * @return
+   */
+  private String getNextContainerNumber(String CAMU) {
+    String nextCAMU = null
+
+    logger.debug("Getting next available container number")
+    Object resp = utility.call("ManageContainer", "GetNextContainerNumber", database, CONO, CAMU)
+    if (resp == void || resp == null) {
+      return null
+    }
+    nextCAMU = resp as String
+
+    logger.debug("Next conatiner number is ${nextCAMU}")
+    return nextCAMU
   }
 
   /**
