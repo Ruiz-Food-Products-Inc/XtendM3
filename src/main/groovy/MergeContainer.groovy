@@ -7,6 +7,8 @@
  * Description: Merges like containers
  * Date	      Changed By            Description
  * 20230207	  JHAGLER               initial development
+ * 20230406	  JHAGLER               only allow COMG 7
+ * 20230621	  JHAGLER               bugfix array.size -> array.size()
  */
 
 public class MergeContainer extends ExtendM3Transaction {
@@ -31,6 +33,13 @@ public class MergeContainer extends ExtendM3Transaction {
     String iSTAS = mi.in.get('STAS')
     String iBANO = mi.in.get('BANO')
     String iCAMU = mi.in.get('CAMU')
+
+
+    String COMG = getContainerManagementCode(iWHLO, iITNO)
+    if (COMG != "7") {
+      // overriding the container number should only be done for container managed 7-Package
+      return
+    }
 
 
     String baseCAMU = iCAMU.split("_")[0]
@@ -66,7 +75,7 @@ public class MergeContainer extends ExtendM3Transaction {
     // this will be the container that everything is merged actionMITLOC
     String firstContainer = containers[0]
     // loop over containers starting at the SECOND element
-    for (int i=1; i<(containers.size as int); i++) {
+    for (int i=1; i<(containers.size() as int); i++) {
       def params = [
         "PRFL": "*EXE",
         "E0PA": "WS",
@@ -90,4 +99,25 @@ public class MergeContainer extends ExtendM3Transaction {
     mi.write()
 
   }
+
+
+  /**
+   * Get next generated container number
+   * @param WHLO
+   * @return containerNumber
+   */
+  String getContainerManagementCode(String WHLO, String ITNO) {
+    String containerManagementCode = null
+    def params = [
+      "WHLO": WHLO,
+      "ITNO": ITNO
+    ]
+
+    miCaller.call("MMS200MI", "GetItmWhsBasic", params, {Map<String, ?> resp ->
+      containerManagementCode = resp.get("COMG").toString()
+    })
+
+    return containerManagementCode
+  }
+
 }
