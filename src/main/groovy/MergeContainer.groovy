@@ -9,6 +9,7 @@
  * 20230207	  JHAGLER               initial development
  * 20230406	  JHAGLER               only allow COMG 7
  * 20230621	  JHAGLER               bugfix array.size -> array.size()
+ * 20230622	  JHAGLER               feedback from Infor team
  */
 
 public class MergeContainer extends ExtendM3Transaction {
@@ -67,6 +68,7 @@ public class MergeContainer extends ExtendM3Transaction {
 
     if (records == 0) {
       mi.error("No balance ids were found.")
+      return
     }
 
     logger.debug(containers.toString())
