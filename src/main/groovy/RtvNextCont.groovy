@@ -6,8 +6,8 @@ import java.text.SimpleDateFormat
  * README
  * This transaction will return a formatted container number with a unique sequence
  *
- * Name: EXT165MI.GetNextCong
- * Description: Retieve next container
+ * Name: EXT165MI.RtvNextCong
+ * Description: Retrieve next container
  * Date	      Changed By            Description
  * 20230717	  JHAGLER               initial development
  */
