@@ -1,6 +1,16 @@
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 
+
+/**
+ * README
+ * This transaction will return a formatted container number with a unique sequence
+ *
+ * Name: EXT165MI.GetNextCong
+ * Description: Retieve next container
+ * Date	      Changed By            Description
+ * 20230717	  JHAGLER               initial development
+ */
 public class RtvNextCont extends ExtendM3Transaction {
   private final MIAPI mi;
   private final ProgramAPI program;
@@ -62,6 +72,13 @@ public class RtvNextCont extends ExtendM3Transaction {
 
   }
 
+
+  /**
+   * Get next number from standard M3 number series
+   * @param seriesType
+   * @param seriesNumber
+   * @return
+   */
   long getNextNumber(String seriesType, String seriesNumber) {
     def params = [
       "DIVI": "",
@@ -78,6 +95,11 @@ public class RtvNextCont extends ExtendM3Transaction {
     return nextNumber
   }
 
+  /**
+   * Get series type and series from extension fields on MITWHL
+   * @param WHLO
+   * @return
+   */
   HashMap<String, String> getContainerNumberSeries(String WHLO) {
     def params = [
       "FILE": "MITWHL",
@@ -95,6 +117,11 @@ public class RtvNextCont extends ExtendM3Transaction {
     return data
   }
 
+  /**
+   * Get the current date in the warehouse's local timezone
+   * @param WHLO
+   * @return
+   */
   String getWarehouseDate(String WHLO) {
     def params = [
       WHLO: WHLO
