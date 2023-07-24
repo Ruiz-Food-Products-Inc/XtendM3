@@ -1,6 +1,5 @@
-import java.text.DecimalFormat
-import java.text.SimpleDateFormat
-
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /**
  * README
@@ -10,6 +9,7 @@ import java.text.SimpleDateFormat
  * Description: Retrieve next container
  * Date	      Changed By            Description
  * 20230717	  JHAGLER               initial development
+ * 20230724	  JHAGLER               changed to LocalDate and DateTimeFormatter for conversion
  */
 public class RtvNextCont extends ExtendM3Transaction {
   private final MIAPI mi;
@@ -105,8 +105,8 @@ public class RtvNextCont extends ExtendM3Transaction {
       "FILE": "MITWHL",
       "PK01": WHLO
     ]
-    String seriesType = "";
-    String series = "";
+    String seriesType = ""
+    String series = ""
     miCaller.call("CUSEXTMI", "GetFieldValue", params, { Map<String, String> resp ->
       seriesType = resp.get("A330").toString()
       series = resp.get("A430").toString()
@@ -133,9 +133,19 @@ public class RtvNextCont extends ExtendM3Transaction {
     return date
   }
 
+  /**
+   * Converts date in yyyyMMdd format to yyDDD
+   * @param date
+   * @return
+   */
   String convertToM3ToJulian(String date) {
-    SimpleDateFormat m3 = new SimpleDateFormat("yyyyMMdd")
-    SimpleDateFormat julian = new SimpleDateFormat("yyDDD")
-    return julian.format(m3.parse(date))
+    String julianDate = ""
+    if (date) {
+      date = date.trim()
+      DateTimeFormatter m3 = DateTimeFormatter.ofPattern("yyyyMMdd")
+      DateTimeFormatter julian = DateTimeFormatter.ofPattern("yyDDD")
+      julianDate = LocalDate.parse(date, m3).format(julian)
+    }
+    return julianDate
   }
 }
