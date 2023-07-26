@@ -7,6 +7,7 @@
  * Description: Splits
  * Date	      Changed By            Description
  * 20230607	  JHAGLER               initial development
+ * 2023025	  JHAGLER               validate if PNLI is numeric
  */
 
 public class PPS001MI_ReceiptPRE extends ExtendM3Trigger {
@@ -33,6 +34,12 @@ public class PPS001MI_ReceiptPRE extends ExtendM3Trigger {
     String WHLO = transaction.parameters.get("WHLO")
     String PUNO = transaction.parameters.get("PUNO")
     String PNLI = transaction.parameters.get("PNLI")
+
+    if (!PNLI.isInteger()) {
+      this.transaction.abortTransaction("PNLI","XNU0000","PNLI should be numeric")
+      return
+    }
+
     String CAMU = transaction.parameters.get("CAMU")
 
     String ITNO = getItemNumber(PUNO, PNLI)
@@ -66,20 +73,6 @@ public class PPS001MI_ReceiptPRE extends ExtendM3Trigger {
    */
   String getItemNumber(String PUNO, String PNLI) {
     String itemNumber = null
-    // def params = [
-    //   "PUNO": PUNO,
-    //   "PNLI": PNLI,
-    // ]
-
-    // logger.debug("PUNO=${PUNO}; PNLI=${PNLI}")
-
-    // miCaller.call("PPS200MI", "GetLine", params, {Map<String, ?> resp ->
-    //   if (resp.error) {
-    //     logger.debug("${resp}")
-    //   } else {
-    //     itemNumber = resp.get("ITNO").toString()
-    //   }
-    // })
 
     DBAction actionMPLINE = database.table("MPLINE").index("00").selection("IBITNO").build()
     DBContainer containerMPLINE = actionMPLINE.getContainer()
