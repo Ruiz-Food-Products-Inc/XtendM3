@@ -7,8 +7,9 @@
  * Description: Splits
  * Date	      Changed By            Description
  * 20230214	  JHAGLER               initial development
- * 20230607   JHAGLER               only split containers if receiving into COMG=7,
+ * 20230802   JHAGLER               only split containers if receiving into COMG=7,
  *                                  if COMG=1, remove suffix
+ * 20240110   JHAGLER               Specifically run customizations for COMG 1 or 7
  */
 
 public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
@@ -60,23 +61,24 @@ public class MHS850MI_AddDOReceiptPRE extends ExtendM3Trigger {
         String baseCAMU = CAMU.split("_")[0]
         logger.debug("Container ${CAMU} has a suffix, receiving ast ${baseCAMU}")
         transaction.parameters.put("TOCA", baseCAMU)
-        return
       }
     }
-
-    boolean hasMultiple = hasMultipleBalanceIds(CAMU)
-    logger.debug("Container ${CAMU} has multiple balance ids = ${hasMultiple}")
-    if (hasMultiple) {
-      // this container exists in multiple locations
-      // receive this into a newly sequenced container
-      String nextCAMU = getNextContainerNumber(CAMU)
-      if (nextCAMU) {
-        logger.debug("Container will be received as ${nextCAMU}")
-        transaction.parameters.put("TOCA", nextCAMU)
-      } else {
-        transaction.abortTransaction("", "", "Could not get unique container number to receive against.")
+    
+    if (COMG == "7") {
+      boolean hasMultiple = hasMultipleBalanceIds(CAMU)
+      logger.debug("Container ${CAMU} has multiple balance ids = ${hasMultiple}")
+      if (hasMultiple) {
+        // this container exists in multiple locations
+        // receive this into a newly sequenced container
+        String nextCAMU = getNextContainerNumber(CAMU)
+        if (nextCAMU) {
+          logger.debug("Container will be received as ${nextCAMU}")
+          transaction.parameters.put("TOCA", nextCAMU)
+        } else {
+          transaction.abortTransaction("", "", "Could not get unique container number to receive against.")
+        }
+  
       }
-
     }
 
   }
